@@ -81,6 +81,10 @@ do
     g.rim:SetAlpha(0.1)
     g.tint:SetColorTexture(0.5, 0.5, 0.5, 0.5)
     A.SetFillAlpha(0.5)
+    -- A consumer's own entry in its TUNABLES (an options-UI separator): an
+    -- upgrade must not trip over it, or the newer copy never finishes loading
+    -- and New fails for every addon after it.
+    table.insert(B.TUNABLES, { label = "---" })
     -- What consumers hold on to.
     local held = {
         lib = lib, impl = lib.impl, instances = lib.instances, SIZES = lib.SIZES, small = lib.SIZES.small,
@@ -169,6 +173,35 @@ do
     eq(rawget(A, "MEDIA"), nil, "through the library, not a copy")
     eq(bar:GetStatusBarTexture()._file, mediaOf("GlassUnitFrames") .. "bar_fill", "a bar built earlier keeps its path")
     eq(newBar:GetStatusBarTexture()._file, mediaOf("GlassChat") .. "bar_fill", "a new bar takes the winner's")
+end
+
+------------------------------------------------------------------------------
+-- Surfaces from older code may lack regions this copy builds: the setters
+-- and hooks skip what isn't there. (r1 has no older copy, so the regions are
+-- removed by hand: no track, a bar state without its frames, no state at all,
+-- no edge.)
+------------------------------------------------------------------------------
+do
+    WoW.reset(); WoW.resetLibStub()
+    local lib = loadLibrary("GlassUnitFrames")
+    local O = lib:New()
+    local host = newHost()
+    local g = O.Apply(host, "large")
+    local noTrack, bare, stateless = O.Bar(host, 20), O.Bar(host, 20), O.Bar(host, 20)
+    rawset(noTrack, "track", nil)
+    rawset(bare, "glassState", { inst = O })
+    rawset(stateless, "glassState", nil)
+    g.edge = nil
+    loadCopy(NEWER, "GlassChat")
+    local ok, err = pcall(function()
+        noTrack:SetStatusBarColor(1, 0, 0)
+        O.SetTrackAlpha(0.3); O.SetFillEnd(0.5)
+        bare:SetHeight(30); bare:SetFrameLevel(8); bare:SetStatusBarColor(0, 1, 0)
+        stateless:SetStatusBarColor(0, 0, 1); stateless:SetHeight(30); stateless:SetFrameLevel(8)
+        O.SetEdge(g, 0.5, 0.1, 0.3)
+    end)
+    check(ok, "setters and hooks skip regions older code didn't build: " .. tostring(err))
+    eq(noTrack:GetStatusBarTexture()._alpha, 0.6, "and still paint what is there")
 end
 
 ------------------------------------------------------------------------------

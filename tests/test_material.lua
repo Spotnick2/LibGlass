@@ -169,4 +169,36 @@ eq(rimT.default, 0.7, "default is the shipped value, not the live one")
 check(rimT.set(0.9), "a tunable's setter works")
 eq(g.rim._alpha, 0.9, "through the instance")
 
+------------------------------------------------------------------------------
+-- As in v3, builders look Mask and Smooth up on the instance when they run,
+-- so a consumer's override of either is honoured.
+------------------------------------------------------------------------------
+local masks = 0
+local mask = Glass.Mask
+Glass.Mask = function(...) masks = masks + 1; return mask(...) end
+Glass.Apply(newHost(), "large")
+eq(masks, 1, "Apply builds its mask through the instance's Mask")
+Glass.Bar(newHost(), 10)
+eq(masks, 4, "and Bar its three")
+Glass.Mask = mask
+Enum.StatusBarInterpolation = { ExponentialEaseOut = 2 }
+local smooth = Glass.Smooth
+local plain = Glass.Bar(newHost(), 10)
+Glass.SetBar(plain, 10, 4)
+eq(plain._interp, 2, "eased while the instance's Smooth says so")
+Glass.Smooth = function() return nil end
+Glass.SetBar(plain, 10, 5)
+eq(plain._interp, nil, "SetBar asks the instance's Smooth (overridden: instant)")
+Glass.Smooth = smooth
+Enum.StatusBarInterpolation = nil
+
+------------------------------------------------------------------------------
+-- New: a colon call and a known font, or a loud error.
+------------------------------------------------------------------------------
+local okDot, errDot = pcall(LibGlass.New, { style = { rimAlpha = 1 } })
+check(not okDot and tostring(errDot):find("with a colon", 1, true), "a dot call fails loudly: " .. tostring(errDot))
+local okFont, errFont = pcall(LibGlass.New, LibGlass, { font = "comic" })
+check(not okFont and tostring(errFont):find("unknown font", 1, true), "an unknown font fails loudly: " .. tostring(errFont))
+eq(LibGlass:New({ font = "friz" }).fontKey, "friz", "a known one is taken")
+
 done("test_material")

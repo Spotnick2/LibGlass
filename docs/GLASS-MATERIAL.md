@@ -135,8 +135,10 @@ Every setter (`SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `Set
 with the bar's own instance's `STYLE`.
 
 A `SetStatusBarColor` hook re-tints the fill and the track only when the colour actually changes
-(painters recolour on every health and power event), honours a 4th alpha argument, and does no
-arithmetic on the colour beyond that plain alpha, so a secret can't throw there. The tuning
+(painters recolour on every health and power event) and honours a 4th alpha argument. It
+compares the new colour with the last one (`==`) and does arithmetic only on that plain alpha, as
+v3 did. Pass it plain colours: whether `==` on a secret colour throws on this client is
+unmeasured (Lua 5.1 can't make `==` throw in the test stub, so the tests can't catch it). The tuning
 setters (`SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`) reject NaN.
 
 All of them are masked by `bar_mask` (each child frame with its own mask anchored to the bar). The
@@ -180,6 +182,7 @@ addon brought it.
      - Libs/LibGlass-1.0/tests
      - Libs/LibGlass-1.0/docs
      - Libs/LibGlass-1.0/Tools
+     - Libs/LibGlass-1.0/AGENTS.md
      - Libs/LibGlass-1.0/CLAUDE.md
      - Libs/LibGlass-1.0/README.md
    ```
@@ -209,6 +212,11 @@ Glass.SetRimAlpha(0.5)                           -- this instance's surfaces onl
 - **Shared, read-only:** `MEDIA`, `SIZES`, `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL`. `MEDIA` is the
   winning copy's folder (`Interface\AddOns\<host>\Libs\LibGlass-1.0\Media\`) and changes when a
   newer copy loads. **Don't use it for your own art**: point your textures at your own folder.
+  It is derived from the addon name the client passes, so **embed the library exactly at
+  `<Addon>\Libs\LibGlass-1.0\`**. A copy nested anywhere else (inside another embedded library)
+  would point every addon's new surfaces at a folder that doesn't exist, without an error, once it
+  is the newest copy loaded. Nested embedding is unsupported in `-1.0` until it is measured
+  (Phase 4 of `docs/PLAN.md`).
 - **Region fields** you may retint, re-alpha or hide: `g.{size,shadow,mask,tint,grain,wash,top,
   dark,rim,edge}` and `bar.{glassMask,track,trackClip,overlay,trackColor}`. What the library
   repaints later is only what a setter owns (every rim's alpha after `SetRimAlpha`) and a bar's

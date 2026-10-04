@@ -24,6 +24,7 @@ ignore:
   - Libs/LibGlass-1.0/tests
   - Libs/LibGlass-1.0/docs
   - Libs/LibGlass-1.0/Tools
+  - Libs/LibGlass-1.0/AGENTS.md
   - Libs/LibGlass-1.0/CLAUDE.md
   - Libs/LibGlass-1.0/README.md
 ```

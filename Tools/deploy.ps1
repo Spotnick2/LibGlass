@@ -15,7 +15,8 @@
 
 param(
     [Parameter(Mandatory)][string]$Addon,
-    [string]$AddOnsPath = "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns"
+    [string]$AddOnsPath = "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns",
+    [string]$Lua = "C:\Program Files (x86)\Lua\5.1\lua.exe"
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,7 +40,7 @@ $extra = @(Get-ChildItem -LiteralPath (Join-Path $LibRoot "Media") -Filter "*.tg
     Where-Object { $Textures -notcontains $_.BaseName } | ForEach-Object { $_.Name })
 if ($extra.Count -gt 0) { Write-Error ("Media\ holds textures the code doesn't name: " + ($extra -join ", ")); exit 1 }
 
-$luac = "C:\Program Files (x86)\Lua\5.1\luac.exe"
+$luac = Join-Path (Split-Path -Parent $Lua) "luac.exe"
 if (Test-Path -LiteralPath $luac) {
     Push-Location $LibRoot
     try {
@@ -59,6 +60,9 @@ try {
 
 # --- Copy.
 if (-not (Test-Path -LiteralPath $AddOnsPath)) { Write-Error "AddOns path not found: $AddOnsPath"; exit 1 }
+# Absolute, so the stale-file sweep below compares like with like (with a
+# relative path it matched nothing and deleted every file it had just copied).
+$AddOnsPath = (Resolve-Path -LiteralPath $AddOnsPath).ProviderPath
 $dest = Join-Path $AddOnsPath "$Addon\Libs\LibGlass-1.0"
 Write-Host "Deploying LibGlass $commit -> $dest" -ForegroundColor Cyan
 foreach ($f in $files) {

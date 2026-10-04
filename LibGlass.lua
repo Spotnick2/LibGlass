@@ -34,6 +34,11 @@ if not lib then return end   -- an equal or newer copy is already loaded
 local HOST = ...
 lib.MEDIA = HOST and ("Interface\\AddOns\\" .. HOST .. "\\Libs\\LibGlass-1.0\\Media\\")
     or "Interface\\AddOns\\LibGlass-1.0\\Media\\"
+-- What an instance reads through to the library (see lib.instanceMT below).
+-- MEDIA goes in here in the same step, so builders and instances can't
+-- disagree about the folder even if this copy throws later in its load.
+lib.shared = lib.shared or {}
+lib.shared.MEDIA = lib.MEDIA
 local MASK_WRAP = "CLAMPTOBLACKADDITIVE"
 
 lib.impl = lib.impl or {}
@@ -133,8 +138,6 @@ lib.defaults.TUNABLES = {
 
 -- What an instance reads through to the library: no function, so nothing an
 -- older copy installed here can go stale. Filled in place on every upgrade.
-lib.shared = lib.shared or {}
-lib.shared.MEDIA = lib.MEDIA
 lib.shared.SIZES = lib.SIZES
 lib.shared.FONTS = lib.FONTS
 lib.shared.TRACK_LEVEL = lib.TRACK_LEVEL
@@ -254,7 +257,7 @@ function lib.impl.Apply(inst, host, size)
     slice(sh, S.shadowMargin)
     g.shadow = sh
 
-    g.mask = lib.impl.Mask(inst, host, S.mask, S.maskMargin)
+    g.mask = inst.Mask(host, S.mask, S.maskMargin)
 
     local tint = host:CreateTexture(nil, "BACKGROUND", nil, -6)
     tint:SetAllPoints(host)
@@ -322,7 +325,7 @@ function lib.impl.Bar(inst, parent, height)
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(0)
 
-    local mask = lib.impl.Mask(inst, bar, "bar_mask", 8)
+    local mask = inst.Mask(bar, "bar_mask", 8)
     bar.glassMask = mask
 
     local bg = bar:CreateTexture(nil, "BACKGROUND")
@@ -359,7 +362,7 @@ function lib.impl.Bar(inst, parent, height)
     track:SetAllPoints(bar)
     track:SetTexture(lib.MEDIA .. "track_fade")
     track:SetVertexColor(1, 1, 1, 0)
-    track:AddMaskTexture(lib.impl.Mask(inst, trackClip, "bar_mask", 8, 0, bar))
+    track:AddMaskTexture(inst.Mask(trackClip, "bar_mask", 8, 0, bar))
     bar.track, bar.trackClip = track, trackClip
     -- What the hooks need, on the bar rather than in their closures, so they
     -- can dispatch to whichever copy of the library is newest when they run.
@@ -373,7 +376,7 @@ function lib.impl.Bar(inst, parent, height)
     over:SetFrameLevel(bar:GetFrameLevel() + lib.OVERLAY_LEVEL)
     bar.overlay = over
     bar.glassState.over = over
-    local omask = lib.impl.Mask(inst, over, "bar_mask", 8)
+    local omask = inst.Mask(over, "bar_mask", 8)
 
     local gloss = over:CreateTexture(nil, "OVERLAY", nil, 1)
     gloss:SetAllPoints(bar)
@@ -447,11 +450,9 @@ end
 -- client rejects the eased call, fall back to an instant one rather than
 -- leaving the bar frozen.
 function lib.impl.SetBar(inst, bar, maxValue, value, snap)
-    local interp = (not snap) and lib.impl.Smooth(inst) or nil
-    if interp and pcall(function()
-        bar:SetMinMaxValues(0, maxValue, interp)
-        bar:SetValue(value, interp)
-    end) then return end
+    local interp = (not snap) and inst.Smooth() or nil
+    if interp and pcall(bar.SetMinMaxValues, bar, 0, maxValue, interp)
+        and pcall(bar.SetValue, bar, value, interp) then return end
     bar:SetMinMaxValues(0, maxValue)
     bar:SetValue(value)
 end
@@ -461,7 +462,7 @@ end
 -- Returns the AnimationGroup; call :Stop() then :Play() to sweep.
 function lib.impl.Sheen(inst, g, host, width, height)
     local S = lib.SIZES[g.size]
-    local mask = lib.impl.Mask(inst, g.top, S.mask, S.maskMargin)
+    local mask = inst.Mask(g.top, S.mask, S.maskMargin)
     local s = g.top:CreateTexture(nil, "OVERLAY", nil, 5)
     s:SetTexture(lib.MEDIA .. "sheen2")
     s:SetSize(math.floor(width * 0.5), height + 20)
@@ -588,7 +589,9 @@ function lib.impl.Migrate(inst)
     end
     inst.TUNABLES = inst.TUNABLES or {}
     local have = {}
-    for _, t in ipairs(inst.TUNABLES) do have[t.key] = true end
+    for _, t in ipairs(inst.TUNABLES) do
+        if type(t) == "table" and t.key ~= nil then have[t.key] = true end   -- tolerate a consumer's own entries
+    end
     for _, d in ipairs(lib.defaults.TUNABLES) do
         if not have[d.key] then
             local t = {}
@@ -606,12 +609,18 @@ end
 -- fontKey (opts.font), TUNABLES and surfaces. Shared read-only: MEDIA, SIZES,
 -- FONTS, TRACK_LEVEL, OVERLAY_LEVEL.
 function lib:New(opts)
+    if self ~= lib then
+        error(MAJOR .. ': call it as LibStub("LibGlass-1.0"):New(opts), with a colon', 2)
+    end
     local _, active = LibStub:GetLibrary(MAJOR)
     if lib.ready ~= active then
         error(MAJOR .. ": the loaded copy (MINOR " .. tostring(active) .. ") did not finish loading"
             .. " (ready = " .. tostring(lib.ready) .. "); see the first error this session", 2)
     end
     opts = opts or {}
+    if opts.font ~= nil and not lib.FONTS[opts.font] then
+        error(MAJOR .. ": unknown font " .. tostring(opts.font) .. " (see FONTS)", 2)
+    end
     local inst = { STYLE = fill({}, lib.defaults.STYLE), fontKey = opts.font }
     if opts.style then fill(inst.STYLE, opts.style) end
     lib.impl.Migrate(inst)
