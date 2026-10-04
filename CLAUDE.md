@@ -7,15 +7,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 LibGlass-1.0 is the **"liquid glass" material for World of Warcraft: Forever 1.60.1** (Interface
 `16001`) addons, written in **Lua 5.1**, as an **embedded LibStub library**. Single owner
 (Spotnick). It replaces the hand-copied `Glass.lua` that lived in eight addons: GlassUnitFrames
-(the original), GlassChat, Gnomesweeper, GlassRaidFrames, GlassXp (GlassPanel), GlassMiniMapBar,
+(the original), GlassChat, Gnomesweeper, GlassRaidFrames, GlassPanel, GlassMiniMapBar,
 AltStable and LibGroupBuffs.
 
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-04): Phase 1 (r1) implemented on its PR, not tagged.** `docs/PLAN.md` is the
-approved plan (adversarially reviewed by Codex, findings reconciled in it). `r1` is tagged only
-after the GlassUnitFrames pilot (Phase 2) validates the merged commit.
+**Status (2026-10-04): `r1` released** (tag on `562da7b`). GlassUnitFrames is the pilot consumer
+(Phase 2 done, pinned to `tag: r1`). Phase 3, the other Glass addons, is tracked in #3, with the
+per-addon guide at `C:\Projects\References\LIBGLASS-MIGRATION.md`. Phase 4 (#4) is the
+embedded-libraries guide. `docs/PLAN.md` is the approved plan (adversarially reviewed by Codex,
+findings reconciled in it).
 
 Work goes through GitHub issues and PRs at `github.com/Spotnick2/LibGlass` (**public**: the
 packager clones externals anonymously, so it must stay public). License: MIT.
