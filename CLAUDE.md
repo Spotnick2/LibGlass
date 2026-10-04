@@ -62,8 +62,8 @@ side by side.
 
 ## Upgrade rules (several addons ship copies; the newest one wins, and it may not be yours)
 
-These follow `C:\Projects\References\PORTING-TBC-TO-FOREVER.md`, "Sharing one library across your
-addons". Treat that section as fact.
+These follow `C:\Projects\References\EMBEDDED-LIBRARIES.md` §5 (it replaced the porting guide's
+"Sharing one library across your addons" section). Treat it as fact.
 
 - **Dispatch at call time.** Instance functions, `TUNABLES[i].set` and **every hook installed on a
   frame** (`SetStatusBarColor`, `SetHeight`, `SetFrameLevel`) call `lib.impl.<name>(...)` when
@@ -131,9 +131,11 @@ Use the Lua 5.1 toolchain at `C:\Program Files (x86)\Lua\5.1\`, not a newer Lua 
 
 ## References
 
-- `C:\Projects\References\PORTING-TBC-TO-FOREVER.md`: measured client facts, including the library
-  section above. Other sessions edit it; addon-agnostic findings go there (Phase 4 of the plan
-  moves the library material into `C:\Projects\References\EMBEDDED-LIBRARIES.md`).
+- `C:\Projects\References\EMBEDDED-LIBRARIES.md`: the embedded-library guide (Phase 4), written
+  from what this library and LibGroupBuffs measured. Packaging, pinning, upgrade rules and tests
+  that apply beyond LibGlass go there.
+- `C:\Projects\References\PORTING-TBC-TO-FOREVER.md`: measured client facts. Other sessions edit
+  both files, so re-read before editing, and keep your edits to the section you mean to change.
 - `C:\Projects\References\forever-api-1.60.1.70205.md`: the API dump (widget methods included).
   Presence is not a contract.
 - `C:\Projects\LibGroupBuffs`: the precedent embedded library (multi-file MINOR guards, fixtures,
