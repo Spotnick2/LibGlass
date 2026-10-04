@@ -13,8 +13,9 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-04): bootstrapped, nothing implemented yet.** `docs/PLAN.md` is the approved
-plan (adversarially reviewed by Codex, findings reconciled in it). Work starts at Phase 1.
+**Status (2026-10-04): Phase 1 (r1) implemented on its PR, not tagged.** `docs/PLAN.md` is the
+approved plan (adversarially reviewed by Codex, findings reconciled in it). `r1` is tagged only
+after the GlassUnitFrames pilot (Phase 2) validates the merged commit.
 
 Work goes through GitHub issues and PRs at `github.com/Spotnick2/LibGlass` (**public**: the
 packager clones externals anonymously, so it must stay public). License: MIT.
@@ -104,6 +105,9 @@ method recorded and checked against the API dump by `test_methods.lua`), `tests\
 (loads the library **through the XML's order**), `tests\run.ps1` (`luac -p` + every
 `tests\test_*.lua`).
 
+- **Look parity:** `tests/test_parity.lua` builds the same surfaces with the frozen
+  `tests/fixtures/GlassUF-v3.lua` (GUF @ `09b6f0d`) and with the library, and compares every widget
+  call. A deliberate look change says so in its PR and adjusts that test (and `docs/GLASS-MATERIAL.md`).
 - Must cover: instance isolation; the upgrade path (r1: a synthetic newer copy loaded over the
   current one; from r2: the frozen released `tests\fixtures\LibGlass-r1.lua`), including hooks
   after an upgrade and an older copy loading second being a no-op; `MEDIA` following the winning
