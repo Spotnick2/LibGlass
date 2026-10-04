@@ -46,7 +46,9 @@ end
 function copyOf(edit)
     local copy = {}
     for _, file in ipairs(xmlScripts()) do
-        local src = readFile(file)
+        -- LF, whatever the checkout has: a Windows clone with core.autocrlf
+        -- gets CRLF, and synthetic()'s substitutions are written with "\n".
+        local src = readFile(file):gsub("\r\n", "\n")
         if edit then src = edit(file, src) end
         copy[#copy + 1] = { name = file, src = src }
     end
