@@ -6,7 +6,8 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** being extracted from GlassUnitFrames. See `docs/PLAN.md`. Not released yet.
+> **Status:** r1 implemented (GlassUnitFrames' `Glass.lua` v3, unchanged look). Not tagged yet:
+> `r1` waits for the GlassUnitFrames pilot. See `docs/PLAN.md`.
 
 ## Embedding
 
