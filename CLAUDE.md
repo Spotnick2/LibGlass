@@ -143,8 +143,12 @@ Forever facts that matter here: textures are uncompressed 32-bit TGA, power-of-t
 texture file loads after `/reload`**, only a brand-new addon folder needs a client restart;
 `SetGradient` takes colour objects; sliced masks fail on boxes small in both directions (see
 `docs/GLASS-MATERIAL.md` §6). Bars take secret values straight into `SetMinMaxValues`/`SetValue`;
-the library must never do arithmetic, comparison or string work on a value a consumer passes in
-(apart from the plain colour alpha in the `SetStatusBarColor` hook).
+the library must never do arithmetic, comparison, truth tests or string work on a value a consumer
+passes in, with one exception. **Colours passed to a glass bar's `SetStatusBarColor` must be
+plain**: its hook compares RGB and alpha with the last colour (`==`), defaults the alpha
+(`a or 1`) and multiplies the alpha by `fillEnd` (v3 behaviour, kept for parity). Comparing or
+truth-testing a secret throws (porting guide §4, measured), so a secret colour would throw there.
+Supporting secret colours would mean reworking all three, not just the comparison.
 
 ## Workflow (sibling conventions)
 
