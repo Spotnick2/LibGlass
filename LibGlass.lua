@@ -81,7 +81,7 @@ end
 -- content (bars) starts inside the bevel.
 -- The disc sets (r2, Glass.Disc only) are never sliced: no margins. Their
 -- textures stretch with the host, so `inset` is the bevel at the texture's
--- own size (256 / 64 px), and the shadow is outset on every side by
+-- own size (256 / 64 px; scale it by host size / texture size), and the shadow is outset on every side by
 -- `shadowOutset` times the host's size, so the texture's disc lines up with
 -- the host at any size. "disc" from ~96px up, "disc_small" below.
 lib.SIZES = fill(lib.SIZES or {}, {
@@ -92,7 +92,7 @@ lib.SIZES = fill(lib.SIZES or {}, {
     disc = { shape = "disc", mask = "disc_mask", rim = "disc_rim", dark = "disc_rim_dark",
              shadow = "disc_shadow", shadowOutset = 0.125, inset = 6 },
     disc_small = { shape = "disc", mask = "disc_mask_small", rim = "disc_rim_small", dark = "disc_rim_dark_small",
-                   shadow = "disc_shadow_small", shadowOutset = 0.125, inset = 3 },
+                   shadow = "disc_shadow_small", shadowOutset = 0.125, inset = 4 },
 })
 
 -- Client-shipped fonts only. Arial Narrow runs small, so it gets a point more.
@@ -267,26 +267,11 @@ local function makeEdge(inst, g, host, S)
     return e
 end
 
--- Apply the material to `host`. Returns a table of the regions it made:
--- g.top is the frame to parent text and anything that must sit above the rim.
--- Reads the instance's STYLE now, so a caller may change it between Applies.
-function lib.impl.Apply(inst, host, size)
-    local S = lib.SIZES[size or "large"]
-    if S and S.shape == "disc" then
-        error(MAJOR .. ": " .. size .. ' is a disc size: use Glass.Disc(host, "' .. size .. '")', 2)
-    end
+-- The body both builders share, after the shadow and mask: tint, grain and
+-- wash under g.mask, then g.top with the dark rim and the rim (registered in
+-- the instance's rim list). Sliced by S.rimMargin; discs have none.
+local function buildBody(inst, host, g, S)
     local st = inst.STYLE
-    local g = { size = size or "large" }
-
-    local sh = host:CreateTexture(nil, "BACKGROUND", nil, -8)
-    sh:SetTexture(lib.MEDIA .. S.shadow)
-    sh:SetPoint("TOPLEFT", host, "TOPLEFT", S.shadowPad[1], S.shadowPad[2])
-    sh:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", S.shadowPad[3], S.shadowPad[4])
-    slice(sh, S.shadowMargin)
-    g.shadow = sh
-
-    g.mask = inst.Mask(host, S.mask, S.maskMargin)
-
     local tint = host:CreateTexture(nil, "BACKGROUND", nil, -6)
     tint:SetAllPoints(host)
     tint:SetColorTexture(st.tint[1], st.tint[2], st.tint[3], st.tint[4])
@@ -317,16 +302,40 @@ function lib.impl.Apply(inst, host, size)
     local dark = top:CreateTexture(nil, "OVERLAY", nil, 4)
     dark:SetTexture(lib.MEDIA .. S.dark)
     dark:SetAllPoints(top)
-    slice(dark, S.rimMargin)
+    if S.rimMargin then slice(dark, S.rimMargin) end
     g.dark = dark
 
     local rim = top:CreateTexture(nil, "OVERLAY", nil, 6)
     rim:SetTexture(lib.MEDIA .. S.rim)
     rim:SetAllPoints(top)
-    slice(rim, S.rimMargin)
+    if S.rimMargin then slice(rim, S.rimMargin) end
     rim:SetAlpha(st.rimAlpha)
     table.insert(inst._rims, rim)
     g.rim = rim
+end
+
+-- Apply the material to `host`. Returns a table of the regions it made:
+-- g.top is the frame to parent text and anything that must sit above the rim.
+-- Reads the instance's STYLE now, so a caller may change it between Applies.
+function lib.impl.Apply(inst, host, size)
+    local S = lib.SIZES[size or "large"]
+    if S and S.shape == "disc" then
+        -- Level 3: the consumer's line. The instance wrapper tail-calls us,
+        -- and level 2 would be that lost frame (no position).
+        error(MAJOR .. ": " .. size .. ' is a disc size: use Glass.Disc(host, "' .. size .. '")', 3)
+    end
+    local g = { size = size or "large" }
+
+    local sh = host:CreateTexture(nil, "BACKGROUND", nil, -8)
+    sh:SetTexture(lib.MEDIA .. S.shadow)
+    sh:SetPoint("TOPLEFT", host, "TOPLEFT", S.shadowPad[1], S.shadowPad[2])
+    sh:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", S.shadowPad[3], S.shadowPad[4])
+    slice(sh, S.shadowMargin)
+    g.shadow = sh
+
+    g.mask = inst.Mask(host, S.mask, S.maskMargin)
+
+    buildBody(inst, host, g, S)
 
     g.edge = makeEdge(inst, g, host, S)
 
@@ -346,14 +355,13 @@ function lib.impl.Disc(inst, host, size)
     size = size or "disc"
     local S = lib.SIZES[size]
     if not S or S.shape ~= "disc" then
-        error(MAJOR .. ': Disc takes "disc" or "disc_small", got ' .. tostring(size), 2)
+        error(MAJOR .. ': Disc takes "disc" or "disc_small", got ' .. tostring(size), 3)
     end
     local w, h = host:GetWidth(), host:GetHeight()
     if type(w) ~= "number" or type(h) ~= "number" or not (w > 0) or math.abs(w - h) > 0.01 then
         error(MAJOR .. ": Disc needs a square host, sized before the call (got "
-            .. tostring(w) .. "x" .. tostring(h) .. ")", 2)
+            .. tostring(w) .. "x" .. tostring(h) .. ")", 3)
     end
-    local st = inst.STYLE
     local g = { size = size }
 
     local out = w * S.shadowOutset
@@ -365,44 +373,7 @@ function lib.impl.Disc(inst, host, size)
 
     g.mask = inst.Mask(host, S.mask, nil)
 
-    local tint = host:CreateTexture(nil, "BACKGROUND", nil, -6)
-    tint:SetAllPoints(host)
-    tint:SetColorTexture(st.tint[1], st.tint[2], st.tint[3], st.tint[4])
-    tint:AddMaskTexture(g.mask)
-    g.tint = tint
-
-    local grain = host:CreateTexture(nil, "BACKGROUND", nil, -5)
-    grain:SetAllPoints(host)
-    grain:SetTexture(lib.MEDIA .. "grain", "REPEAT", "REPEAT")
-    grain:SetHorizTile(true)
-    grain:SetVertTile(true)
-    grain:SetAlpha(st.grain)
-    grain:AddMaskTexture(g.mask)
-    g.grain = grain
-
-    local wash = host:CreateTexture(nil, "BACKGROUND", nil, -4)
-    wash:SetAllPoints(host)
-    wash:SetColorTexture(1, 1, 1, 1)
-    wash:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, st.wash))
-    wash:AddMaskTexture(g.mask)
-    g.wash = wash
-
-    local top = CreateFrame("Frame", nil, host)
-    top:SetAllPoints(host)
-    top:SetFrameLevel(host:GetFrameLevel() + 10)
-    g.top = top
-
-    local dark = top:CreateTexture(nil, "OVERLAY", nil, 4)
-    dark:SetTexture(lib.MEDIA .. S.dark)
-    dark:SetAllPoints(top)
-    g.dark = dark
-
-    local rim = top:CreateTexture(nil, "OVERLAY", nil, 6)
-    rim:SetTexture(lib.MEDIA .. S.rim)
-    rim:SetAllPoints(top)
-    rim:SetAlpha(st.rimAlpha)
-    table.insert(inst._rims, rim)
-    g.rim = rim
+    buildBody(inst, host, g, S)
 
     return g
 end

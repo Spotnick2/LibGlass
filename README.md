@@ -63,7 +63,7 @@ local d   = Glass.Disc(square, "disc")               -- r2: round glass on a squ
 | `Font(parent, size, justify?)` | r1 | a FontString in the instance's font |
 | `Sheen(g, host, w, h) → AnimationGroup` | r1 | a sweep; works on discs too |
 | `SetBar(bar, max, value, snap?)`, `Smooth()` | r1 | eased bar values (secrets welcome) |
-| `Inset(size?)`, `ContentLevel(host)` | r1 | content inset and frame level |
+| `Inset(size?)`, `ContentLevel(host)` | r1 | content inset (px) and frame level; for `disc`/`disc_small` the inset is in texture px (256 / 64): scale it by host size ÷ texture size |
 | `SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`, `SetFont(key)` | r1 | live setters, this instance's surfaces only (`SetRimAlpha` reaches discs) |
 
 Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`large`, `small`,

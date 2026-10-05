@@ -241,13 +241,14 @@ def main():
     # up, 64px below. k is chosen so the bevel reads like the rect rims' at
     # typical sizes: ~5.6 texture px (7 px at a 320px host), ~3.5 texture px
     # on the small one (2.2 px at 40, 3.5 at 64). The shadow's texture covers
-    # the host plus 0.125 of its size on every side (SIZES.shadowOutset).
-    for suffix, size, k, sigma, drop in (("", 256, 0.8, 7.0, 3.0), ("_small", 64, 0.5, 2.5, 1.0)):
+    # the host plus `outset` of its size on every side.
+    outset = 0.125                                # = SIZES.disc*.shadowOutset in LibGlass.lua
+    for suffix, size, k, sigma, drop, alpha in (("", 256, 0.8, 7.0, 3.0, 0.55), ("_small", 64, 0.5, 2.5, 1.0, 0.50)):
         write_tga("disc_mask" + suffix, mask(coverage(circle_sdf(size, 0.5))))
         rim, dark = disc_rim(size, k, light=0.8)
         write_tga("disc_rim" + suffix, rim)
         write_tga("disc_rim_dark" + suffix, dark)
-        write_tga("disc_shadow" + suffix, disc_shadow(size, 0.125, sigma, drop, 0.55 if size == 256 else 0.50))
+        write_tga("disc_shadow" + suffix, disc_shadow(size, outset, sigma, drop, alpha))
 
 
 if __name__ == "__main__":

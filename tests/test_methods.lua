@@ -80,7 +80,7 @@ for _, case in ipairs({ { "disc", 320 }, { "disc_small", 64 }, { "disc_small", 4
     Glass.SetEdge(g, 0.5, 0.1, 0.3)   -- no edge: ignored
 end
 eq(Glass.Inset("disc"), 6, "disc inset")
-eq(Glass.Inset("disc_small"), 3, "disc_small inset")
+eq(Glass.Inset("disc_small"), 4, "disc_small inset: past the inner catch-light (3.8 texture px)")
 check(pcall(Glass.Disc, newHost(128, 128)), "Disc defaults to \"disc\"")
 local okRect, errRect = pcall(Glass.Disc, newHost(100, 60), "disc")
 check(not okRect and tostring(errRect):find("square host", 1, true), "a non-square host is refused: " .. tostring(errRect))
@@ -90,6 +90,12 @@ local okSize, errSize = pcall(Glass.Disc, newHost(64, 64), "large")
 check(not okSize and tostring(errSize):find("Disc takes", 1, true), "a rect size is refused: " .. tostring(errSize))
 local okApply, errApply = pcall(Glass.Apply, newHost(64, 64), "disc")
 check(not okApply and tostring(errApply):find("use Glass.Disc", 1, true), "Apply refuses a disc size: " .. tostring(errApply))
+-- Refusals name the consumer's line, through the instance wrapper's tail call.
+for _, case in ipairs({ { "Disc", newHost(100, 60), "disc" }, { "Disc", newHost(64, 64), "large" },
+                        { "Apply", newHost(64, 64), "disc" } }) do
+    local ok, err = pcall(function() Glass[case[1]](case[2], case[3]) end)
+    check(not ok and tostring(err):find("test_methods%.lua:%d+: LibGlass"), case[1] .. "(" .. case[3] .. ") errors at the call site: " .. tostring(err))
+end
 local um = Glass.Mask(newHost(), "disc_mask", nil)
 eq(um._slice, nil, "Mask with a nil margin is unsliced")
 
