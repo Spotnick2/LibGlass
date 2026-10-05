@@ -13,8 +13,9 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-04): `r1` released** (tag on `562da7b`). GlassUnitFrames is the pilot consumer
-(Phase 2 done, pinned to `tag: r1`). Phase 3, the other Glass addons, is tracked in #3, with the
+**Status (2026-10-05): `r2` released** (tag on `ed57e53`: `Glass.Disc`, for PortalRoulette, which
+pins `tag: r2`; `r1` is `562da7b`). GlassUnitFrames is the pilot consumer (Phase 2 done, pinned to
+`tag: r1`). Phase 3, the other Glass addons, is tracked in #3, with the
 per-addon guide at `C:\Projects\References\LIBGLASS-MIGRATION.md`. Phase 4 (#4) is the
 embedded-libraries guide. `docs/PLAN.md` is the approved plan (adversarially reviewed by Codex,
 findings reconciled in it).
@@ -114,8 +115,11 @@ method recorded and checked against the API dump by `test_methods.lua`), `tests\
   `tests/fixtures/GlassUF-v3.lua` (GUF @ `09b6f0d`) and with the library, and compares every widget
   call. A deliberate look change says so in its PR and adjusts that test (and `docs/GLASS-MATERIAL.md`).
 - Must cover: instance isolation; the upgrade path (r1: a synthetic newer copy loaded over the
-  current one; from r2: the frozen released `tests\fixtures\LibGlass-r1.lua`), including hooks
-  after an upgrade and an older copy loading second being a no-op; `MEDIA` following the winning
+  current one; from r2: every frozen release `tests\fixtures\LibGlass-rN.lua`, listed in
+  `test_upgrade.lua`'s `RELEASES`), including hooks after an upgrade and an older copy loading
+  second being a no-op. The fixture of the current MINOR must equal `LibGlass.lua`, so any change
+  after a release fails until MINOR is raised. After pushing tag `rN`, freeze
+  `git show rN:LibGlass.lua` as its fixture and add it to `RELEASES`; `MEDIA` following the winning
   host; the `lib.ready` check; `Media\` holding exactly the textures the code names.
 - **Mutation-test new tests**: break the behaviour (capture `local impl` in a hook, share a
   registry) and confirm they go red.

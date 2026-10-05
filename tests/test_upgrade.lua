@@ -8,8 +8,9 @@
 --   hooks made by the current copy must run the newer copy's code afterwards,
 --   keep their state and the consumer's own overrides, and never be repainted.
 -- - RELEASED older: each released copy frozen as tests/fixtures/LibGlass-rN.lua
---   (r1 = `git show r1:LibGlass.lua`), loaded under the current copy (the
---   current one upgrades it) and after it (a no-op).
+--   (rN = `git show rN:LibGlass.lua`), loaded under the current copy (the
+--   current one upgrades it) and after it (a no-op). The fixture of the
+--   current MINOR must be this file: any change after a release raises MINOR.
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
@@ -349,6 +350,89 @@ do
     check(same, "nor any impl function")
     check(pcall(A.Disc, newHost(128, 128)), "Disc still works")
     eq(#lib.instances, 1, "no instance added")
+end
+
+------------------------------------------------------------------------------
+-- Every released copy (frozen fixture, added here when its tag is pushed).
+-- The release with this MINOR must be this file, byte for byte (two builds
+-- sharing a MINOR would let either one win). Every older release is upgraded
+-- in place by this copy and is a no-op loading after it. r1's specifics are
+-- tested above; this part is generic, so rN joins by its file name.
+------------------------------------------------------------------------------
+local RELEASES = { "LibGlass-r1.lua", "LibGlass-r2.lua" }
+for _, file in ipairs(RELEASES) do
+    local copy = fixtureCopy(file)
+    local src = copy[#copy].src
+    local K = tonumber(src:match('local MAJOR, MINOR = "LibGlass%-1%.0", (%d+)%s'))
+    local r = "r" .. tostring(K)
+    check(K and K <= N, file .. " declares a MINOR no newer than this copy")
+    check(src:match("\nlib%.ready = MINOR%s*$"), file .. " ends with its completion marker")
+    if K == N then
+        check(src == (readFile("LibGlass.lua"):gsub("\r\n", "\n")),
+              "LibGlass.lua is " .. r .. " as released: raise MINOR for any change")
+    elseif K then
+        WoW.reset(); WoW.resetLibStub()
+        local lib = loadCopy(copy, "GlassUnitFrames")
+        eq(activeMinor(), K, r .. " is active")
+        local A, B = lib:New({ style = { rimAlpha = 1 } }), lib:New()
+        local host = newHost(200, 40)
+        local g = A.Apply(host, "large")
+        local bar = A.Bar(host, 20)
+        bar:SetStatusBarColor(1, 0, 0)
+        local d = rawget(A, "Disc") and A.Disc(newHost(64, 64), "disc_small")
+        local gB = B.Apply(newHost(), "small")
+        local held = { impl = lib.impl, instances = lib.instances, functions = lib.FUNCTIONS,
+                       SIZES = lib.SIZES, STYLE = A.STYLE, setRim = A.TUNABLES[2].set }
+        local names = {}
+        for i, n in ipairs(lib.FUNCTIONS) do names[i] = n end
+        local before = logSizes()
+
+        loadLibrary("GlassChat")
+
+        eq(activeMinor(), N, r .. " upgraded: this copy is active")
+        eq(lib.ready, N, r .. " upgraded: and finished loading")
+        check(lib.impl == held.impl and lib.instances == held.instances and lib.FUNCTIONS == held.functions
+              and lib.SIZES == held.SIZES and A.STYLE == held.STYLE, r .. " upgraded: public tables keep their identity")
+        local kept = true
+        for i, n in ipairs(names) do if lib.FUNCTIONS[i] ~= n then kept = false end end
+        check(kept, r .. " upgraded: FUNCTIONS keeps " .. r .. "'s names in place")
+        for _, n in ipairs(lib.FUNCTIONS) do
+            check(type(rawget(A, n)) == "function", r .. " upgraded: its instance has " .. n)
+        end
+        local after = logSizes()
+        local touched = 0
+        for i, n in ipairs(before) do if after[i] ~= n then touched = touched + 1 end end
+        eq(touched, 0, r .. " upgraded: no call on any existing widget")
+        eq(#after, #before, r .. " upgraded: and none created")
+        eq(A.STYLE.rimAlpha, 1, r .. " upgraded: an addon's override is kept")
+        check(held.setRim(0.6), r .. " upgraded: a TUNABLES setter held from " .. r)
+        eq(g.rim._alpha, 0.6, r .. " upgraded: reaches the " .. r .. "-built rect")
+        if d then eq(d.rim._alpha, 0.6, r .. " upgraded: and disc") end
+        eq(gB.rim._alpha, 0.7, r .. " upgraded: and not the other instance's")
+        local calls, orig = 0, lib.impl.OnBarColor
+        lib.impl.OnBarColor = function(...) calls = calls + 1; return orig(...) end
+        bar:SetStatusBarColor(0, 1, 0)
+        lib.impl.OnBarColor = orig
+        eq(calls, 1, r .. " upgraded: its bar hook runs this copy's body, once")
+
+        WoW.reset(); WoW.resetLibStub()
+        local cur = loadLibrary("GlassChat")
+        local C = cur:New()
+        local fns = {}
+        for k, v in pairs(cur.impl) do fns[k] = v end
+        local functions, nFunctions = cur.FUNCTIONS, #cur.FUNCTIONS
+        loadCopy(copy, "GlassUnitFrames")
+        eq(activeMinor(), N, r .. " second: this copy stays active")
+        eq(cur.ready, N, r .. " second: and its marker")
+        eq(cur.MEDIA, mediaOf("GlassChat"), r .. " second: and its media")
+        check(cur.FUNCTIONS == functions and #cur.FUNCTIONS == nFunctions, r .. " second: FUNCTIONS untouched")
+        local same = true
+        for k, v in pairs(fns) do if cur.impl[k] ~= v then same = false end end
+        for k in pairs(cur.impl) do if fns[k] == nil then same = false end end
+        check(same, r .. " second: no impl function replaced")
+        check(pcall(C.Disc, newHost(128, 128)), r .. " second: Disc still works")
+        eq(#cur.instances, 1, r .. " second: no instance added")
+    end
 end
 
 ------------------------------------------------------------------------------
