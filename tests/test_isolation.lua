@@ -60,6 +60,20 @@ A.TUNABLES[2].set(0.9)
 eq(a.g.rim._alpha, 0.9, "A's tunable reaches A")
 eq(b.g.rim._alpha, 1, "and not B")
 
+-- A disc's rim follows only its own instance's SetRimAlpha.
+local dA, dB = A.Disc(newHost(64, 64), "disc_small"), B.Disc(newHost(256, 256), "disc")
+eq(dA.rim._alpha, 0.9, "A's disc takes A's rim alpha")
+eq(dB.rim._alpha, 1, "B's disc takes B's")
+A.SetRimAlpha(0.3)
+eq(dA.rim._alpha, 0.3, "A's disc retuned")
+eq(dB.rim._alpha, 1, "B's disc untouched")
+B.SetRimAlpha(0.8)
+eq(dB.rim._alpha, 0.8, "B's disc follows B")
+eq(dA.rim._alpha, 0.3, "and A's doesn't")
+eq(a.g.rim._alpha, 0.3, "A's rect rim with it")
+eq(b.g.rim._alpha, 0.8, "B's rect rim with B")
+A.SetRimAlpha(0.9); B.SetRimAlpha(1)
+
 -- A bar's hook paints with its own instance's STYLE.
 b.bar:SetStatusBarColor(0, 0, 1)
 eq(b.bar:GetStatusBarTexture()._alpha, 0.6, "B's recolour keeps B's fill opacity, not A's")

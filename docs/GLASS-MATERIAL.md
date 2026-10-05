@@ -73,8 +73,12 @@ Conventions that prevent halos and keep colour a runtime choice:
 | `grain` | 128 | tiled | Faint frost noise |
 | `sheen2` | 256x64 | none | Diagonal streak for the sweep |
 | `track_fade` | 256x8 | none | Horizontal alpha ramp for a bar's missing part |
+| `disc_mask` | 256 | circle / **unsliced** | Disc body mask (r2), hosts from ~96px up |
+| `disc_rim`, `disc_rim_dark` | 256 | circle / unsliced | The rim material on a circle, and its dark companion |
+| `disc_shadow` | 256 | unsliced, outset 0.125 | Soft drop shadow for a disc |
+| `disc_mask_small`, `disc_rim_small`, `disc_rim_dark_small`, `disc_shadow_small` | 64 | circle / unsliced | The same at 64px, for discs under ~96px |
 
-These 15 are all `Media\` holds (`tests/test_media.lua` checks it against the code). The earlier
+These 23 are all `Media\` holds (`tests/test_media.lua` checks it against the code). The earlier
 iterations (`rim`…`rim4`, `sheen`) stay with GlassUnitFrames' `Tools/GlassProbe` for its A/B
 comparison. **Texture names are part of the contract:** a frame keeps the path it was built with,
 so a file is never renamed or repurposed within `LibGlass-1.0`; add a new one instead.
@@ -97,6 +101,32 @@ faint line at the inner lip.
 Current parameters: `rim5` = `glass_rim(64, 14, k=0.72, light=0.8)`, and
 `rim5_small` = `glass_rim(32, 7, k=0.36, light=0.8)`.
 
+The four layers live in `glass_lighting(d, glints, k, light)`, which takes any shape's SDF;
+`glass_rim` gives it the rounded rect and the two corner glints (the rect textures are
+byte-identical to r1's).
+
+### The discs (r2), `circle_sdf`, `disc_rim`, `disc_shadow`
+
+`circle_sdf(size, inset, radius?, dy?)` is the circle's signed distance (negative inside), so the
+disc textures share the rect's coverage, `band`, normals and lighting:
+
+- **`disc_mask(_small)`**: `mask(coverage(circle_sdf(size, 0.5)))`, white-on-black.
+- **`disc_rim(_small)`, `disc_rim_dark(_small)`**: `disc_rim(size, k, light=0.8)` =
+  `glass_lighting` on the circle. The normals of a circle point straight out, so the light from
+  the top makes the outer lip brightest at 12 o'clock and the inner catch-light at 6. The glints
+  sit where the rect rim's sit: on the arc 45° either side of the top (**10:30 and 1:30**), 0.15k
+  inside the outer edge, clipped to the outer band. `k` = 0.8 at 256px (a ~5.6 texture-px bevel:
+  7px on a 320px host) and 0.5 at 64px (~3.5 texture px: 2.2px at 40, 3.5px at 64).
+- **`disc_shadow(_small)`**: `disc_shadow(size, outset=0.125, sigma, drop, alpha)`. The texture
+  covers the host plus 0.125 of its size on every side (`SIZES.disc.shadowOutset`), so the disc in
+  it has radius `size / 2 / 1.25` and lines up with the host at any size. Logistic falloff as
+  the rect shadow (sigma 7 / 2.5, alpha 0.55 / 0.50), centred `drop` px lower (3 / 1) so the
+  outset stays symmetric, and faded to 0 before the texture's edge so no hard circle shows.
+
+Unsliced textures stretch with the host, so the bevel scales with it: use `disc` from ~96px
+up and `disc_small` below (lines thinner than a pixel fade out when a 256px texture is drawn
+small).
+
 ## 4. The layer stack (`LibGlass.lua`)
 
 On a host frame, bottom to top:
@@ -113,6 +143,28 @@ On a host frame, bottom to top:
 | Rim | OVERLAY 6 | `g.top` | 9-sliced, at `STYLE.rimAlpha` (0.7, picked in game; `Glass.SetRimAlpha(a)` retunes every surface) |
 | Text | OVERLAY 7 | `g.top` | `Glass.Font` |
 | Edge (optional) | OVERLAY 7 / 5 / 7 | `g.top`, `g.edge` | a 1px top line, a short glow fading under it, and a 1px dark bottom line, kept `maskMargin - 2` px off the corners. **Off by default** (`STYLE.edge` = 0: hidden). `Glass.SetEdgeAlpha(a)` sets every surface's top line, with the glow and bottom line at `Glass.EDGE` ratios (0.27 / 0.78) over a 4px glow; `Glass.SetEdge(g, top, glow, bottom, glowh)` gives one host its own values, which the global tune then leaves alone |
+
+A glass disc (`Glass.Disc(host, "disc"|"disc_small")`, r2) on a **square** host, bottom to top.
+Its own builder, not `Apply` with a flag; it returns the same fields as `Apply` except `g.edge`,
+which is `nil` (a circle has no top line):
+
+| Layer | Draw layer | Region | Setting |
+|---|---|---|---|
+| Drop shadow | BACKGROUND -8 | host, outset on every side by `shadowOutset` (0.125) × the host's size | unsliced, symmetric |
+| Tint, grain, wash | BACKGROUND -6 / -5 / -4 | host, `SetAllPoints`, masked by `g.mask` (`disc_mask`, unsliced) | as on a rect: `STYLE.tint`, `STYLE.grain`, `STYLE.wash` |
+| *content* | host+2 (`Glass.ContentLevel(host)`) | caller's frames | `Glass.Inset("disc")` is the bevel at the texture's own size (6 / 3 px at 256 / 64); scale it by host size ÷ texture size |
+| Dark rim | OVERLAY 4 | `g.top` (level host+10), `SetAllPoints` | unsliced |
+| Sheen | OVERLAY 5 | `g.top`, own mask | optional: `Glass.Sheen(g, host, w, h)` works unchanged (its mask is the unsliced `disc_mask`) |
+| Rim | OVERLAY 6 | `g.top`, `SetAllPoints` | unsliced, at `STYLE.rimAlpha`; registered with the instance, so `SetRimAlpha` and `TUNABLES` reach it |
+
+- **The host must be square and sized before the call**: `Disc` errors when its width and height
+  differ or are 0 (a frame sized only by anchors may not have resolved yet). The shadow's
+  outset is computed from that size, so **resize a disc with `SetScale`**, not `SetSize`.
+- `Apply` refuses a disc size, and `Disc` refuses `"large"`/`"small"`.
+- `Glass.Mask(host, file, margin, ...)` with **`margin == nil`** (r2) is an unsliced mask stretched
+  over the box. Content on a child frame needs its own:
+  `Glass.Mask(child, "disc_mask", nil, inset, host)`, then `tex:AddMaskTexture(m)`.
+- `SetEdge(g, ...)` on a disc does nothing, and `SetEdgeAlpha` never reaches one.
 
 A glass bar (`Glass.Bar`), bottom to top:
 
@@ -202,6 +254,8 @@ bar:SetPoint("TOPLEFT", frame, "TOPLEFT", Glass.Inset("large"), -Glass.Inset("la
 bar:SetFrameLevel(Glass.ContentLevel(frame))
 local fs  = Glass.Font(g.top, 14, "LEFT")        -- text above the rim
 local ag  = Glass.Sheen(g, frame, width, height) -- optional: ag:Stop(); ag:Play()
+local d   = Glass.Disc(square, "disc")           -- r2: a round surface on a square, sized host
+                                                 -- ("disc_small" under ~96px)
 Glass.SetFont("friz")                            -- restyles this instance's Glass.Font strings
 Glass.SetRimAlpha(0.5)                           -- this instance's surfaces only
 ```
@@ -218,7 +272,7 @@ Glass.SetRimAlpha(0.5)                           -- this instance's surfaces onl
   is the newest copy loaded. Nested embedding is unsupported in `-1.0` until it is measured
   (Phase 4 of `docs/PLAN.md`).
 - **Region fields** you may retint, re-alpha or hide: `g.{size,shadow,mask,tint,grain,wash,top,
-  dark,rim,edge}` and `bar.{glassMask,track,trackClip,overlay,trackColor}`. What the library
+  dark,rim,edge}` (on a disc, `g.edge` is `nil`) and `bar.{glassMask,track,trackClip,overlay,trackColor}`. What the library
   repaints later is only what a setter owns (every rim's alpha after `SetRimAlpha`) and a bar's
   fill and track when its colour changes; an upgrade repaints nothing.
 
@@ -242,6 +296,10 @@ library.
   portrait tile renders fine on `body_mask_small`. It isn't "short" that fails; which axis
   decides, and where the threshold sits between 22 and 32, is **unmeasured** (a settling test:
   three sliced tiles at 32x32, 64x20 and 20x64 in one screenshot).
+- **Circles are never sliced, so discs work at any size.** A 9-sliced mask on a box small in
+  both directions (under ~32px) is broken, as above, but the disc masks are unsliced: one texture
+  stretched over the square host, so a 40px disc uses no slice margin at all. Pick `disc_small`
+  under ~96px only so the rim's thin lines stay at least about a pixel wide.
 - **Never scale a slice margin down to fit a small box.** Margins are in texture pixels and must
   match the generator (`bar_mask`/`bar_edge` are drawn at 32 px, radius 5, margin 8): a margin of
   4 cuts straight through the corner arc. A box too small for the asset's margin needs a smaller
@@ -272,3 +330,4 @@ library.
 | Style 5 (current) | Style 4's rim at 0.72x width and 0.8x light, content inset 8→6, portrait gap 6→3, width 360→300 | From an outside review: style 4 "looks a little like a clear plastic case". **Approved in game**, then tuned live with `/glass fill|rim|track|fade`: fill 0.60, rim 0.70, a colour-tinted track that fades to clear, fill fade off (2026-09-27/28). |
 | Edge (optional, #60) | A directional edge: fine bright top line + short glow, dark bottom line | From GlassChat: two outside critiques of its chat panel ("the thick translucent perimeter still gives it a molded-plastic appearance"; "a narrow highlight fading around the corners"), then the owner's in-game pick there: top 0.45, glow 0.12 over 4px, bottom 0.35, with the rim and dark rim at 0.10 and no shadow or grain. Added **off by default**, so no addon's look changes; GlassUF exposes it as `/glass edge` and an options slider to try on the unit frames (2026-10-03). |
 | LibGlass-1.0 r1 | `Glass.lua` v3 extracted into an embedded library with per-addon instances | No look change: `tests/test_parity.lua` builds the same surfaces with the frozen v3 file and with the library and compares every widget call. The textures moved to the library's folder (2026-10-04). |
+| LibGlass-1.0 r2 | `Glass.Disc`: the material on a circle (8 new textures, all unsliced), for PortalRoulette's arcane wheel | Rects unchanged (the parity test still passes, and the 15 r1 textures regenerate byte-identical). **In-game check pending:** discs at 320, 64 and 40 px in one screenshot before tagging r2. |

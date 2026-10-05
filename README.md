@@ -6,8 +6,9 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** r1 implemented (GlassUnitFrames' `Glass.lua` v3, unchanged look). Not tagged yet:
-> `r1` waits for the GlassUnitFrames pilot. See `docs/PLAN.md`.
+> **Status:** `r1` released (GlassUnitFrames' `Glass.lua` v3, unchanged look; pilot:
+> GlassUnitFrames). r2 adds `Glass.Disc` (round glass); untagged until its in-game check.
+> See `docs/PLAN.md`.
 
 ## Embedding
 
@@ -45,7 +46,30 @@ bar:SetPoint("TOPLEFT", frame, "TOPLEFT", Glass.Inset("large"), -Glass.Inset("la
 bar:SetFrameLevel(Glass.ContentLevel(frame))
 local fs  = Glass.Font(g.top, 14, "LEFT")
 Glass.SetRimAlpha(0.5)                                -- affects only this instance's surfaces
+local d   = Glass.Disc(square, "disc")               -- r2: round glass on a square, sized host
 ```
+
+## API
+
+`LibStub("LibGlass-1.0"):New(opts?)` returns an instance (`opts.style`: `STYLE` overrides,
+`opts.font`: a `FONTS` key). Its functions are dot-called:
+
+| Function | Since | |
+|---|---|---|
+| `Apply(host, "large"\|"small") → g` | r1 | the material on a rectangle (9-sliced) |
+| `Disc(host, "disc"\|"disc_small") → g` | r2 | the material on a circle, unsliced; `host` square and sized first; `g.edge` is `nil`; `"disc_small"` under ~96px |
+| `Bar(parent, height) → bar` | r1 | a glass StatusBar |
+| `Mask(host, file, margin, inset?, anchor?)` | r1 | a rounded mask; `margin == nil` (r2) = unsliced |
+| `Font(parent, size, justify?)` | r1 | a FontString in the instance's font |
+| `Sheen(g, host, w, h) → AnimationGroup` | r1 | a sweep; works on discs too |
+| `SetBar(bar, max, value, snap?)`, `Smooth()` | r1 | eased bar values (secrets welcome) |
+| `Inset(size?)`, `ContentLevel(host)` | r1 | content inset and frame level |
+| `SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`, `SetFont(key)` | r1 | live setters, this instance's surfaces only (`SetRimAlpha` reaches discs) |
+
+Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`large`, `small`,
+and from r2 `disc`, `disc_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
+Region fields: `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
+`bar.{glassMask,track,trackClip,overlay,trackColor}`.
 
 The full write-up of the material is `docs/GLASS-MATERIAL.md`.
 

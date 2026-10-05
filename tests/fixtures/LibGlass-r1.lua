@@ -7,15 +7,12 @@
 --
 --   local Glass = LibStub("LibGlass-1.0"):New(opts?)   -- one instance per addon
 --   local g = Glass.Apply(frame, "large")              -- dot-called, as before
---   local d = Glass.Disc(square, "disc")               -- r2: the round variant
 --
 -- Layer stack on a host frame, bottom to top:
 --   shadow -> tint -> grain -> wash      (on the host, masked to a rounded rect)
 --   ...caller's content frames...        (host level + 2)
 --   dark rim -> sheen -> rim -> text     (on g.top, host level + 10)
 --   optional edge: top line + glow, bottom line (on g.top; off by default)
--- A disc (Glass.Disc) has the same stack on a square host, every layer
--- unsliced and round, and no edge.
 --
 -- Several addons embed copies and the newest one loaded wins (LibStub), so an
 -- instance made by an older copy must run this copy's code. Hence the rules:
@@ -28,7 +25,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 2
+local MAJOR, MINOR = "LibGlass-1.0", 1
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -79,20 +76,11 @@ end
 -- Texture sets. Slice margins are in texture pixels and must match the
 -- generator; "small" is for anything under ~40px tall. `inset` is where
 -- content (bars) starts inside the bevel.
--- The disc sets (r2, Glass.Disc only) are never sliced: no margins. Their
--- textures stretch with the host, so `inset` is the bevel at the texture's
--- own size (256 / 64 px), and the shadow is outset on every side by
--- `shadowOutset` times the host's size, so the texture's disc lines up with
--- the host at any size. "disc" from ~96px up, "disc_small" below.
 lib.SIZES = fill(lib.SIZES or {}, {
     large = { mask = "body_mask", maskMargin = 16, rim = "rim5", dark = "rim_dark5", rimMargin = 16,
               shadow = "shadow", shadowMargin = 48, shadowPad = { -22, 20, 22, -26 }, inset = 6 },
     small = { mask = "body_mask_small", maskMargin = 8, rim = "rim5_small", dark = "rim_dark5_small", rimMargin = 8,
               shadow = "shadow_small", shadowMargin = 24, shadowPad = { -12, 10, 12, -14 }, inset = 3 },
-    disc = { shape = "disc", mask = "disc_mask", rim = "disc_rim", dark = "disc_rim_dark",
-             shadow = "disc_shadow", shadowOutset = 0.125, inset = 6 },
-    disc_small = { shape = "disc", mask = "disc_mask_small", rim = "disc_rim_small", dark = "disc_rim_dark_small",
-                   shadow = "disc_shadow_small", shadowOutset = 0.125, inset = 3 },
 })
 
 -- Client-shipped fonts only. Arial Narrow runs small, so it gets a point more.
@@ -158,21 +146,9 @@ lib.instanceMT = lib.instanceMT or {}
 lib.instanceMT.__index = lib.shared
 
 -- The instance functions, each dispatched to lib.impl[name](inst, ...).
--- Public, so filled in place: new names are appended to the table an older
--- copy made (r1 replaced it wholesale; from r2 it keeps its identity).
-lib.FUNCTIONS = lib.FUNCTIONS or {}
-do
-    local have = {}
-    for _, name in ipairs(lib.FUNCTIONS) do have[name] = true end
-    for _, name in ipairs({ "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
-                            "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
-                            "SetFont", "Disc" }) do
-        if not have[name] then
-            table.insert(lib.FUNCTIONS, name)
-            have[name] = true
-        end
-    end
-end
+lib.FUNCTIONS = { "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
+                  "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
+                  "SetFont" }
 
 --------------------------------------------------------------------------------
 -- Helpers (called only from impl functions, never captured by a closure that
@@ -230,8 +206,7 @@ end
 
 -- A 9-sliced rounded mask owned by `host`, covering `anchor` (default: host)
 -- inset by `inset` px. A mask masks textures of its own frame: give a child
--- its own mask anchored to the shape it must follow. A nil `margin` (r2)
--- means unsliced, stretched over the box: the disc masks.
+-- its own mask anchored to the shape it must follow.
 function lib.impl.Mask(inst, host, file, margin, inset, anchor)
     local m = host:CreateMaskTexture()
     m:SetTexture(lib.MEDIA .. file, MASK_WRAP, MASK_WRAP)
@@ -239,7 +214,7 @@ function lib.impl.Mask(inst, host, file, margin, inset, anchor)
     anchor = anchor or host
     m:SetPoint("TOPLEFT", anchor, "TOPLEFT", inset, -inset)
     m:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -inset, inset)
-    if margin ~= nil then slice(m, margin) end
+    slice(m, margin)
     return m
 end
 
@@ -272,9 +247,6 @@ end
 -- Reads the instance's STYLE now, so a caller may change it between Applies.
 function lib.impl.Apply(inst, host, size)
     local S = lib.SIZES[size or "large"]
-    if S and S.shape == "disc" then
-        error(MAJOR .. ": " .. size .. ' is a disc size: use Glass.Disc(host, "' .. size .. '")', 2)
-    end
     local st = inst.STYLE
     local g = { size = size or "large" }
 
@@ -329,80 +301,6 @@ function lib.impl.Apply(inst, host, size)
     g.rim = rim
 
     g.edge = makeEdge(inst, g, host, S)
-
-    return g
-end
-
--- The round variant (r2): the same material on a square host, as a circle.
--- Its own builder, not Apply with a flag: nothing is sliced (a circle has no
--- straight run to stretch, so it works at any size, where a sliced mask on a
--- box small in both directions fails), there is no edge (g.edge is nil), and
--- the shadow is a symmetric outset proportional to the host. Returns the
--- same fields as Apply. The host must be square and sized before the call;
--- resize a disc later with SetScale, not SetSize (the shadow's outset is
--- computed here). Content on a child frame needs its own mask:
--- Glass.Mask(child, "disc_mask", nil, inset, host).
-function lib.impl.Disc(inst, host, size)
-    size = size or "disc"
-    local S = lib.SIZES[size]
-    if not S or S.shape ~= "disc" then
-        error(MAJOR .. ': Disc takes "disc" or "disc_small", got ' .. tostring(size), 2)
-    end
-    local w, h = host:GetWidth(), host:GetHeight()
-    if type(w) ~= "number" or type(h) ~= "number" or not (w > 0) or math.abs(w - h) > 0.01 then
-        error(MAJOR .. ": Disc needs a square host, sized before the call (got "
-            .. tostring(w) .. "x" .. tostring(h) .. ")", 2)
-    end
-    local st = inst.STYLE
-    local g = { size = size }
-
-    local out = w * S.shadowOutset
-    local sh = host:CreateTexture(nil, "BACKGROUND", nil, -8)
-    sh:SetTexture(lib.MEDIA .. S.shadow)
-    sh:SetPoint("TOPLEFT", host, "TOPLEFT", -out, out)
-    sh:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", out, -out)
-    g.shadow = sh
-
-    g.mask = inst.Mask(host, S.mask, nil)
-
-    local tint = host:CreateTexture(nil, "BACKGROUND", nil, -6)
-    tint:SetAllPoints(host)
-    tint:SetColorTexture(st.tint[1], st.tint[2], st.tint[3], st.tint[4])
-    tint:AddMaskTexture(g.mask)
-    g.tint = tint
-
-    local grain = host:CreateTexture(nil, "BACKGROUND", nil, -5)
-    grain:SetAllPoints(host)
-    grain:SetTexture(lib.MEDIA .. "grain", "REPEAT", "REPEAT")
-    grain:SetHorizTile(true)
-    grain:SetVertTile(true)
-    grain:SetAlpha(st.grain)
-    grain:AddMaskTexture(g.mask)
-    g.grain = grain
-
-    local wash = host:CreateTexture(nil, "BACKGROUND", nil, -4)
-    wash:SetAllPoints(host)
-    wash:SetColorTexture(1, 1, 1, 1)
-    wash:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, st.wash))
-    wash:AddMaskTexture(g.mask)
-    g.wash = wash
-
-    local top = CreateFrame("Frame", nil, host)
-    top:SetAllPoints(host)
-    top:SetFrameLevel(host:GetFrameLevel() + 10)
-    g.top = top
-
-    local dark = top:CreateTexture(nil, "OVERLAY", nil, 4)
-    dark:SetTexture(lib.MEDIA .. S.dark)
-    dark:SetAllPoints(top)
-    g.dark = dark
-
-    local rim = top:CreateTexture(nil, "OVERLAY", nil, 6)
-    rim:SetTexture(lib.MEDIA .. S.rim)
-    rim:SetAllPoints(top)
-    rim:SetAlpha(st.rimAlpha)
-    table.insert(inst._rims, rim)
-    g.rim = rim
 
     return g
 end

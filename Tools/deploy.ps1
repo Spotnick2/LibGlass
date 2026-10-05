@@ -25,7 +25,9 @@ $LibRoot = Split-Path -Parent $PSScriptRoot
 # The textures LibGlass.lua names (tests/test_media.lua keeps this list honest).
 $Textures = @("bar_edge", "bar_fill", "bar_mask", "body_mask", "body_mask_small", "gloss", "grain",
               "rim5", "rim5_small", "rim_dark5", "rim_dark5_small", "shadow", "shadow_small",
-              "sheen2", "track_fade")
+              "sheen2", "track_fade",
+              "disc_mask", "disc_mask_small", "disc_rim", "disc_rim_small", "disc_rim_dark", "disc_rim_dark_small",
+              "disc_shadow", "disc_shadow_small")
 
 # --- Preflight: everything the XML loads, LICENSE, every texture.
 $xmlPath = Join-Path $LibRoot "LibGlass-1.0.xml"
