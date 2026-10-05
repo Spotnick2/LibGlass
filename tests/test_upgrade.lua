@@ -10,7 +10,9 @@
 -- - RELEASED older: each released copy frozen as tests/fixtures/LibGlass-rN.lua
 --   (rN = `git show rN:LibGlass.lua`), loaded under the current copy (the
 --   current one upgrades it) and after it (a no-op). The fixture of the
---   current MINOR must be this file: any change after a release raises MINOR.
+--   current MINOR must be this LibGlass.lua: a code change after a release
+--   raises MINOR. (Only the Lua is compared: a Media\, XML or LibStub change
+--   needs the same bump by hand.)
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
@@ -354,8 +356,9 @@ end
 
 ------------------------------------------------------------------------------
 -- Every released copy (frozen fixture, added here when its tag is pushed).
--- The release with this MINOR must be this file, byte for byte (two builds
--- sharing a MINOR would let either one win). Every older release is upgraded
+-- The release with this MINOR must be this LibGlass.lua, byte for byte (two
+-- builds sharing a MINOR would let either one win; Media\, the XML and LibStub
+-- are not compared). Every older release is upgraded
 -- in place by this copy and is a no-op loading after it. r1's specifics are
 -- tested above; this part is generic, so rN joins by its file name.
 ------------------------------------------------------------------------------
@@ -369,7 +372,7 @@ for _, file in ipairs(RELEASES) do
     check(src:match("\nlib%.ready = MINOR%s*$"), file .. " ends with its completion marker")
     if K == N then
         check(src == (readFile("LibGlass.lua"):gsub("\r\n", "\n")),
-              "LibGlass.lua is " .. r .. " as released: raise MINOR for any change")
+              "LibGlass.lua is " .. r .. " as released: raise MINOR for any code change")
     elseif K then
         WoW.reset(); WoW.resetLibStub()
         local lib = loadCopy(copy, "GlassUnitFrames")

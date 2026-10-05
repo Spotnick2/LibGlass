@@ -117,8 +117,9 @@ method recorded and checked against the API dump by `test_methods.lua`), `tests\
 - Must cover: instance isolation; the upgrade path (r1: a synthetic newer copy loaded over the
   current one; from r2: every frozen release `tests\fixtures\LibGlass-rN.lua`, listed in
   `test_upgrade.lua`'s `RELEASES`), including hooks after an upgrade and an older copy loading
-  second being a no-op. The fixture of the current MINOR must equal `LibGlass.lua`, so any change
-  after a release fails until MINOR is raised. After pushing tag `rN`, freeze
+  second being a no-op. The fixture of the current MINOR must equal `LibGlass.lua`, so a code change
+  after a release fails until MINOR is raised. Only the Lua is compared: a `Media\`, XML or
+  LibStub change after a release needs the same bump, by hand. After pushing tag `rN`, freeze
   `git show rN:LibGlass.lua` as its fixture and add it to `RELEASES`; `MEDIA` following the winning
   host; the `lib.ready` check; `Media\` holding exactly the textures the code names.
 - **Mutation-test new tests**: break the behaviour (capture `local impl` in a hook, share a
