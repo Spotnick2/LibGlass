@@ -1,14 +1,15 @@
 -- What happens when several addons embed the library: the newest copy loaded
 -- wins, and it may not be yours.
 --
--- r1 has no released predecessor, so the newer copy here is SYNTHETIC: this
--- checkout with MINOR + 1, a new STYLE key, EDGE key, TUNABLE and function,
--- a changed default, and every lib.impl function wrapped to count its calls.
--- Surfaces, instances, TUNABLES setters and bar hooks made by the current
--- copy must run the newer copy's code afterwards, keep their state and the
--- consumer's own overrides, and never be repainted. From r2 on, the released
--- r1 is frozen as tests/fixtures/LibGlass-r1.lua and loaded under the current
--- copy as well.
+-- Two kinds of older/newer copy:
+-- - SYNTHETIC newer: this checkout with MINOR + 1, a new STYLE key, EDGE key,
+--   TUNABLE and function, a changed default, and every lib.impl function
+--   wrapped to count its calls. Surfaces, instances, TUNABLES setters and bar
+--   hooks made by the current copy must run the newer copy's code afterwards,
+--   keep their state and the consumer's own overrides, and never be repainted.
+-- - RELEASED older: each released copy frozen as tests/fixtures/LibGlass-rN.lua
+--   (r1 = `git show r1:LibGlass.lua`), loaded under the current copy (the
+--   current one upgrades it) and after it (a no-op).
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
@@ -31,7 +32,7 @@ end]], {
     { "    sheenAlpha = 0.8,\n", "    sheenAlpha = 0.8,\n    probe = 0.5,\n" },
     { "    rimAlpha = 0.7,", "    rimAlpha = 0.33," },
     { "glowh = 4 }", "glowh = 4, probeEdge = 2 }" },
-    { '"SetFont" }', '"SetFont", "Probe" }' },
+    { '"SetFont", "Disc" }', '"SetFont", "Disc", "Probe" }' },
     { "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n",
       "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n"
       .. "    { key = \"probe\", style = \"probe\", fn = \"SetRimAlpha\", min = 0, max = 1, label = \"Probe\", help = \"probe\" },\n" },
@@ -88,7 +89,7 @@ do
     -- What consumers hold on to.
     local held = {
         lib = lib, impl = lib.impl, instances = lib.instances, SIZES = lib.SIZES, small = lib.SIZES.small,
-        FONTS = lib.FONTS, apply = A.Apply, setRim = A.TUNABLES[2].set, tunables = A.TUNABLES,
+        FONTS = lib.FONTS, functions = lib.FUNCTIONS, apply = A.Apply, setRim = A.TUNABLES[2].set, tunables = A.TUNABLES,
         firstTunable = A.TUNABLES[1], style = A.STYLE, edge = A.EDGE,
     }
     local before = logSizes()
@@ -103,6 +104,8 @@ do
     eq(#lib.instances, 2, "with both instances")
     check(lib.SIZES == held.SIZES and lib.SIZES.small == held.small and lib.FONTS == held.FONTS,
           "public tables filled in place")
+    eq(lib.FUNCTIONS, held.functions, "FUNCTIONS keeps its identity")
+    eq(lib.FUNCTIONS[#lib.FUNCTIONS], "Probe", "with the new function appended")
 
     -- Never repaints, never rebuilds.
     local after = logSizes()
@@ -246,6 +249,106 @@ do
     check(not okNew, "New fails loudly")
     check(tostring(errNew):find("did not finish loading", 1, true), "saying why: " .. tostring(errNew))
     check(pcall(A.Apply, newHost(), "large"), "an instance made earlier still draws")
+end
+
+------------------------------------------------------------------------------
+-- The released r1 (frozen fixture) upgraded by this copy.
+------------------------------------------------------------------------------
+local R1 = fixtureCopy("LibGlass-r1.lua")
+check(R1[#R1].src:match('local MAJOR, MINOR = "LibGlass%-1%.0", 1%s'), "the r1 fixture is MINOR 1")
+check(N > 1, "this copy is newer than r1")
+do
+    WoW.reset(); WoW.resetLibStub()
+    local lib = loadCopy(R1, "GlassUnitFrames")
+    eq(activeMinor(), 1, "r1 is active")
+    local A = lib:New({ style = { rimAlpha = 1 } })
+    local B = lib:New()
+    local host = newHost(200, 40)
+    local g = A.Apply(host, "large")
+    local bar = A.Bar(host, 20)
+    bar:SetStatusBarColor(1, 0, 0)
+    local gB = B.Apply(newHost(), "small")
+    g.rim:SetAlpha(0.1)                      -- a consumer's direct override
+    A.SetFillAlpha(0.5)                      -- a live-tuned value
+    table.insert(B.TUNABLES, { label = "---" })
+    check(rawget(A, "Disc") == nil and lib.SIZES.disc == nil, "r1 has no Disc")
+    local held = {
+        impl = lib.impl, instances = lib.instances, SIZES = lib.SIZES, large = lib.SIZES.large,
+        FONTS = lib.FONTS, functions = lib.FUNCTIONS, apply = A.Apply, setRim = A.TUNABLES[2].set,
+        tunables = A.TUNABLES, style = A.STYLE, edge = A.EDGE,
+    }
+    local nFunctions = #lib.FUNCTIONS
+    local before = logSizes()
+
+    loadLibrary("GlassChat")
+
+    eq(activeMinor(), N, "this copy is active")
+    eq(lib.ready, N, "and finished loading")
+    eq(LibStub(MAJOR), lib, "the same library table")
+    check(lib.impl == held.impl and lib.instances == held.instances, "lib.impl and lib.instances keep their identity")
+    check(lib.SIZES == held.SIZES and lib.SIZES.large == held.large and lib.FONTS == held.FONTS,
+          "SIZES and FONTS filled in place")
+    eq(lib.FUNCTIONS, held.functions, "FUNCTIONS keeps r1's table")
+    eq(#lib.FUNCTIONS, nFunctions + 1, "with one name appended")
+    eq(lib.FUNCTIONS[#lib.FUNCTIONS], "Disc", "Disc")
+    check(lib.SIZES.disc and lib.SIZES.disc_small, "SIZES gains the disc sets")
+
+    local after = logSizes()
+    local touched = 0
+    for i, n in ipairs(before) do if after[i] ~= n then touched = touched + 1 end end
+    eq(touched, 0, "the upgrade made no call on any existing widget")
+    eq(#after, #before, "and created none")
+    eq(g.rim._alpha, 0.1, "a consumer's direct override survives")
+    eq(A.STYLE, held.style, "STYLE keeps its identity")
+    eq(A.EDGE, held.edge, "EDGE too")
+    eq(A.STYLE.rimAlpha, 1, "an addon's override is kept")
+    eq(A.STYLE.fillAlpha, 0.5, "a live-tuned value is kept")
+    eq(A.TUNABLES, held.tunables, "TUNABLES keeps its identity")
+    eq(#A.TUNABLES, 5, "with the same five knobs")
+    eq(#B.TUNABLES, 6, "and a consumer's own entry tolerated")
+
+    check(type(rawget(A, "Disc")) == "function", "an r1 instance gains Disc")
+    local d = A.Disc(newHost(64, 64), "disc_small")
+    eq(d.rim._file, mediaOf("GlassChat") .. "disc_rim_small", "drawn from the winning copy's folder")
+    eq(d.rim._alpha, 1, "with the instance's STYLE")
+    check(held.setRim(0.6), "a TUNABLES setter held from r1")
+    eq(d.rim._alpha, 0.6, "reaches the disc")
+    eq(g.rim._alpha, 0.6, "and the r1-built surface")
+    eq(gB.rim._alpha, 0.7, "and not the other instance's")
+    eq(A.Apply, held.apply, "an instance function keeps its identity")
+
+    -- r1's hooks dispatch to this copy's bodies.
+    local calls, orig = 0, lib.impl.OnBarColor
+    lib.impl.OnBarColor = function(...) calls = calls + 1; return orig(...) end
+    bar:SetStatusBarColor(0, 1, 0)
+    lib.impl.OnBarColor = orig
+    eq(calls, 1, "an r1 bar's colour hook runs this copy's body, once")
+    eq(bar:GetStatusBarTexture()._alpha, 0.5, "and paints with the instance's STYLE")
+    check(pcall(A.Mask, host, "disc_mask", nil), "an r1 instance's Mask takes a nil margin now")
+end
+
+------------------------------------------------------------------------------
+-- The released r1 loading after this copy: a no-op.
+------------------------------------------------------------------------------
+do
+    WoW.reset(); WoW.resetLibStub()
+    local lib = loadLibrary("GlassChat")
+    local A = lib:New()
+    local fns = {}
+    for k, v in pairs(lib.impl) do fns[k] = v end
+    local functions, nFunctions, disc = lib.FUNCTIONS, #lib.FUNCTIONS, lib.SIZES.disc
+    loadCopy(R1, "GlassUnitFrames")
+    eq(activeMinor(), N, "this copy stays active")
+    eq(lib.ready, N, "and its marker")
+    eq(lib.MEDIA, mediaOf("GlassChat"), "and its media")
+    check(lib.FUNCTIONS == functions and #lib.FUNCTIONS == nFunctions, "r1 doesn't replace FUNCTIONS")
+    eq(lib.SIZES.disc, disc, "nor SIZES")
+    local same = true
+    for k, v in pairs(fns) do if lib.impl[k] ~= v then same = false end end
+    for k in pairs(lib.impl) do if fns[k] == nil then same = false end end
+    check(same, "nor any impl function")
+    check(pcall(A.Disc, newHost(128, 128)), "Disc still works")
+    eq(#lib.instances, 1, "no instance added")
 end
 
 ------------------------------------------------------------------------------

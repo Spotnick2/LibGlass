@@ -22,6 +22,10 @@ for _, size in ipairs({ "large", "small" }) do
     Glass.Bar(host, 20)
     Glass.Sheen(g, host, 200, 40)
 end
+for _, size in ipairs({ "disc", "disc_small" }) do
+    local host = newHost(64, 64)
+    Glass.Sheen(Glass.Disc(host, size), host, 64, 64)
+end
 for _, w in ipairs(WoW.widgets) do
     if w._file then
         local name = w._file:match("^" .. lib.MEDIA:gsub("%p", "%%%0") .. "([%w_]+)$")
@@ -44,7 +48,7 @@ for name in pairs(named) do
     count = count + 1
     check(files[name .. ".tga"], "Media holds " .. name .. ".tga")
 end
-eq(count, 15, "the code names 15 textures")
+eq(count, 23, "the code names 23 textures (r1's 15 and the 8 disc textures)")
 for file in pairs(files) do
     local name = file:match("^(.+)%.tga$")
     check(name and named[name], "Media\\" .. file .. " is a texture the code names")

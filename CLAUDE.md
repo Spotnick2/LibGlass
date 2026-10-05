@@ -26,9 +26,10 @@ packager clones externals anonymously, so it must stay public). License: MIT.
 
 - **No TOC.** Entry point `LibGlass-1.0.xml`: `LibStub\LibStub.lua`, then `LibGlass.lua`.
 - **`LibGlass.lua`**: the one runtime file. `MAJOR, MINOR = "LibGlass-1.0", N`.
-- **`Media\`**: exactly the 15 textures the code names (`bar_edge bar_fill bar_mask body_mask
+- **`Media\`**: exactly the 23 textures the code names (r1: `bar_edge bar_fill bar_mask body_mask
   body_mask_small gloss grain rim5 rim5_small rim_dark5 rim_dark5_small shadow shadow_small
-  sheen2 track_fade`). Generated, never hand-edited.
+  sheen2 track_fade`; r2: `disc_mask disc_rim disc_rim_dark disc_shadow` and their `_small`
+  versions). Generated, never hand-edited.
 - **`Tools\make_textures.py`**: the texture generator (Pillow + numpy).
   **`Tools\deploy.ps1`**: the helper consumers call to copy this checkout into
   `AddOns\<Addon>\Libs\LibGlass-1.0` (preflight: XML, Lua, all textures, LICENSE).
@@ -46,7 +47,8 @@ side by side.
 - **`LibGlass:New(opts?)`** returns a per-addon **instance**. Opts: `style` (overrides of
   `STYLE`), `font` (a `FONTS` key).
 - Instance functions, dot-called (`Glass.Apply(...)`, not `Glass:Apply`): `Apply(host,
-  "large"|"small") → g`, `Bar(parent, height)`, `Mask(host, file, margin, inset?, anchor?)`,
+  "large"|"small") → g`, `Disc(host, "disc"|"disc_small") → g` (r2; square host, `g.edge` nil),
+  `Bar(parent, height)`, `Mask(host, file, margin, inset?, anchor?)` (`margin` nil = unsliced, r2),
   `Font(parent, size, justify?)`, `Sheen(g, host, w, h)`, `SetBar(bar, max, value, snap?)`,
   `Smooth()`, `Inset(size?)`, `ContentLevel(host)`, `SetFillAlpha`, `SetRimAlpha`,
   `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`,
@@ -71,7 +73,8 @@ These follow `C:\Projects\References\EMBEDDED-LIBRARIES.md` §5 (it replaced the
   that outlives the load: an older copy's closure would run old code forever, and re-hooking
   would run both.
 - **Reuse tables in place.** `lib.impl`, `lib.instances` and every public table keep their
-  identity across upgrades (`X = X or {}`, fill in place).
+  identity across upgrades (`X = X or {}`, fill in place). That includes `lib.FUNCTIONS`: from r2
+  new names are appended to it (r1 replaced it wholesale).
 - **Narrow migration.** A newer copy fills only *missing* `STYLE`/`EDGE` keys (`== nil`) on older
   instances and appends new `TUNABLES` entries. It never repaints existing regions and never
   rebuilds geometry (consumer overrides must survive; protected frames can't be touched in

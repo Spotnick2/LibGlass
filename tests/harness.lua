@@ -99,6 +99,17 @@ function synthetic(minor, extra, replace)
     end)
 end
 
+-- A released copy, frozen under tests/fixtures (e.g. "LibGlass-r1.lua"),
+-- loaded the way the XML loads it: the bundled LibStub, then the library.
+function fixtureCopy(file)
+    local copy = {}
+    for _, name in ipairs(xmlScripts()) do
+        local path = name == "LibGlass.lua" and ("tests/fixtures/" .. file) or name
+        copy[#copy + 1] = { name = path, src = (readFile(path):gsub("\r\n", "\n")) }
+    end
+    return copy
+end
+
 -- A host frame of the given size under UIParent.
 function newHost(w, h)
     local f = CreateFrame("Frame", nil, UIParent)

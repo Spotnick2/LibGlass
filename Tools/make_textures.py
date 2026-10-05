@@ -3,8 +3,9 @@
     python Tools/make_textures.py
 
 The generator is the source of truth; the .tga files are committed outputs.
-It writes exactly the 15 textures LibGlass.lua names (tests/test_media.lua
-checks Media/ against the code). Lifted from GlassUnitFrames @ 09b6f0d,
+It writes exactly the 23 textures LibGlass.lua names (tests/test_media.lua
+checks Media/ against the code): the 15 of r1 and the 8 disc textures of r2.
+Lifted from GlassUnitFrames @ 09b6f0d,
 without the probe's earlier iterations (rim..rim4, sheen, late), which stay
 with GlassProbe. Never rename an output: frames built earlier keep the path.
 
@@ -16,6 +17,7 @@ Conventions, all chosen to avoid edge halos and to keep colour a runtime decisio
   channel the client samples (loaded with CLAMPTOBLACKADDITIVE wrap).
 - Rounded-rect textures are designed for 9-slicing: the corner radius sits
   inside the slice margin, noted per texture below and mirrored in the Lua.
+- Disc textures (circle_sdf) are never sliced: they stretch with the host.
 - Power-of-two sizes, bottom-left origin (the most common TGA layout).
 """
 
@@ -87,6 +89,18 @@ def normals(d):
     return gx / n, gy / n
 
 
+def circle_sdf(size, inset, radius=None, dy=0.0):
+    """Signed distance (px) to a circle centred in a size x size texture; negative inside.
+
+    The circle touches the texture inset by `inset`, unless `radius` is given.
+    `dy` moves its centre down (a drop shadow's offset).
+    """
+    ys, xs = np.mgrid[0:size, 0:size].astype(np.float64) + 0.5
+    c = size / 2.0
+    r = (c - inset) if radius is None else radius
+    return np.hypot(xs - c, ys - (c + dy)) - r
+
+
 def glass_rim(size, radius, k, light=1.0):
     """The style-4 glass rim and its dark companion, at any size.
 
@@ -96,6 +110,41 @@ def glass_rim(size, radius, k, light=1.0):
     Returns (rim, dark) as RGBA float arrays.
     """
     d = rounded_rect_sdf(size, size, 0.5, radius)
+    c = 6.5 * k                                   # glint centre: on the top corner arcs, near the outer lip
+    return glass_lighting(d, ((c, c), (size - c, c)), k, light)
+
+
+def disc_rim(size, k, light=1.0):
+    """The same rim material on a circle filling the texture (never sliced).
+
+    Light from the top, as on the rect rim: the outer lip is brightest at 12
+    o'clock, the inner catch-light at 6. The glints sit where the rect rim's
+    sit, on the arc 45 degrees either side of the top (10:30 and 1:30), just
+    inside the outer edge. Returns (rim, dark).
+    """
+    d = circle_sdf(size, 0.5)
+    c = size / 2.0
+    r = (c - 0.5) - 0.15 * k                      # the rect glints' depth below the edge
+    s = r * np.sqrt(0.5)
+    return glass_lighting(d, ((c - s, c - s), (c + s, c - s)), k, light)
+
+
+def disc_shadow(size, outset, sigma, drop, alpha):
+    """A soft drop shadow for a disc whose texture is outset on every side by
+    `outset` times the disc's diameter (SIZES.shadowOutset in the Lua): the
+    disc is centred, `drop` px lower, with a logistic falloff, and faded to 0
+    before the texture's edge so no hard circle or square shows."""
+    r = size / 2.0 / (1 + 2 * outset)
+    d = circle_sdf(size, 0, radius=r, dy=drop)
+    shadow = alpha / (1 + np.exp(d / (sigma * 0.55)))
+    edge = -circle_sdf(size, 0)                   # distance in from the inscribed circle
+    return black(shadow * np.clip(edge / sigma, 0, 1))
+
+
+def glass_lighting(d, glints, k, light):
+    """The rim's four alpha layers and its dark companion, from any shape's SDF
+    `d` (square texture) and the centres of its two glints."""
+    size = d.shape[0]
     nx, ny = normals(d)
     top, bottom, left = np.maximum(-ny, 0), np.maximum(ny, 0), np.maximum(-nx, 0)
     ys, xs = np.mgrid[0:size, 0:size].astype(np.float64) + 0.5
@@ -104,8 +153,7 @@ def glass_rim(size, radius, k, light=1.0):
     vert = 1 - ys / size                          # 1 at the top, 0 at the bottom
     slab = band(d, -7.0 * k, -0.5 * k, 0.6) * (0.05 + 0.13 * vert ** 1.5 + 0.06 * top)
     glint = np.zeros_like(d)
-    c = 6.5 * k                                   # glint centre: on the top corner arcs, near the outer lip
-    for gx, gy in ((c, c), (size - c, c)):
+    for gx, gy in glints:
         glint += np.exp(-(((xs - gx) ** 2 + (ys - gy) ** 2) / (2 * (2.2 * k) ** 2))) * 0.85
     glint *= band(d, -3.5 * k, -0.2 * k, 0.6)
     rim = white(np.clip(np.maximum.reduce([outer, inner, slab, glint]) * light, 0, 1))
@@ -187,6 +235,20 @@ def main():
     t = (xs - 128) + (ys - 32) * 0.6
     streak = np.exp(-(t / 16.0) ** 2) * 0.32 + np.exp(-((t - 22) / 4.0) ** 2) * 0.22
     write_tga("sheen2", white(streak * np.exp(-((ys - 32) / 40.0) ** 2)))
+
+    # Discs (r2, Glass.Disc): the same material on a circle, never sliced, so
+    # each texture stretches with its square host. 256px for hosts from ~96px
+    # up, 64px below. k is chosen so the bevel reads like the rect rims' at
+    # typical sizes: ~5.6 texture px (7 px at a 320px host), ~3.5 texture px
+    # on the small one (2.2 px at 40, 3.5 at 64). The shadow's texture covers
+    # the host plus `outset` of its size on every side.
+    outset = 0.125                                # = SIZES.disc*.shadowOutset in LibGlass.lua
+    for suffix, size, k, sigma, drop, alpha in (("", 256, 0.8, 7.0, 3.0, 0.55), ("_small", 64, 0.5, 2.5, 1.0, 0.50)):
+        write_tga("disc_mask" + suffix, mask(coverage(circle_sdf(size, 0.5))))
+        rim, dark = disc_rim(size, k, light=0.8)
+        write_tga("disc_rim" + suffix, rim)
+        write_tga("disc_rim_dark" + suffix, dark)
+        write_tga("disc_shadow" + suffix, disc_shadow(size, outset, sigma, drop, alpha))
 
 
 if __name__ == "__main__":

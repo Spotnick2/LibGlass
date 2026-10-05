@@ -105,7 +105,8 @@ local function scenario(Glass)
             note(k .. "." .. key .. "=" .. tostring(v))
         end
     end
-    for name, S in pairs(Glass.SIZES) do
+    for _, name in ipairs({ "large", "small" }) do   -- v3's sets (the disc sets came in r2)
+        local S = Glass.SIZES[name]
         for key, v in pairs(S) do
             if type(v) == "table" then v = table.concat(v, ",") end
             note("SIZES." .. name .. "." .. key .. "=" .. tostring(v))
