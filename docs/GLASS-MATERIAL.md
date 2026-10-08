@@ -201,6 +201,27 @@ set your alphas while the surface is enabled. Both setters work on surfaces an o
 (they use only r1's region fields), and take **plain values**: they range-check and truth-test
 their arguments, so a secret would throw.
 
+**Class-colour glass.** The default tint isn't special: any surface can take any colour, a class
+colour included.
+
+```lua
+local _, class = UnitClass("player")
+local c = RAID_CLASS_COLORS[class]           -- or C_ClassColor.GetClassColor(class)
+Glass.SetSurfaceTint(g, c.r, c.g, c.b, 0.3)  -- omit the alpha to keep the surface's own 0.24
+```
+
+- **Keep the alpha low** (about 0.2–0.35). Saturated or warm tints read as smoked plastic (§1);
+  near 1 the body becomes a solid coloured panel, not glass.
+- **Follow a unit** by calling it again when the unit changes; `Glass.SetSurfaceTint(g)` goes back
+  to the built tint (no target, say).
+- **Plain values only.** `UnitClass` is not marked secret in the Forever 1.60.1 API dump (retail
+  12.1 made it secret for restricted units, such as focus and target-of-target), so a colour derived
+  from it is plain today. If Forever ever restricts it, fall back to the default tint for those
+  units.
+- **Bars are separate:** colour a glass bar with `bar:SetStatusBarColor(r, g, b)` (also plain
+  only). A class-coloured unit frame would tint its glass faintly and colour its health bar at full
+  strength. *Not yet tried in game.*
+
 A glass bar (`Glass.Bar`), bottom to top:
 
 | Part | Where | Notes |
