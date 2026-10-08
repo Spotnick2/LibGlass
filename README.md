@@ -68,7 +68,7 @@ Glass.SetSurfaceEnabled(b, false)                    -- r3: its disabled look
 | `SetBar(bar, max, value, snap?)`, `Smooth()` | r1 | eased bar values (secrets welcome) |
 | `Inset(size?)`, `ContentLevel(host)` | r1 | content inset (px) and frame level; for `disc`/`disc_small` the inset is in texture px (256 / 64): scale it by host size ÷ texture size |
 | `SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`, `SetFont(key)` | r1 | live setters, this instance's surfaces only (`SetRimAlpha` reaches discs) |
-| `SetSurfaceTint(g, r, g, b, a)`, `SetSurfaceEnabled(g, enabled)` | r3 | one surface: its own tint (`(g)` = back to `STYLE.tint`), its disabled look (dimmed to `STYLE.disabledAlpha`) |
+| `SetSurfaceTint(g, r, g, b, a)`, `SetSurfaceEnabled(g, enabled)` | r3 | one surface: its own tint (`a` optional; `(g)` = back to its built colour), its disabled look (its regions' alphas scaled by `STYLE.disabledAlpha`, given back on enable) |
 
 Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`large`, `small`,
 from r2 `disc`, `disc_small`, from r3 `thin`, `thin_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).

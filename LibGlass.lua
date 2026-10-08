@@ -134,7 +134,7 @@ lib.defaults.STYLE = {
     frost = 0.10,                        -- plus a white frost, 0 at the bottom to this at the top
     sheenAlpha = 0.8,
     edge = 0,                            -- the optional directional edge's top line (0 = off; GlassChat ships 0.45)
-    disabledAlpha = 0.4,                 -- r3: SetSurfaceEnabled(g, false) dims tint, wash, rims and edge to this
+    disabledAlpha = 0.4,                 -- r3: SetSurfaceEnabled(g, false) scales the body, rims and edge by this
 }
 -- The directional edge, as fractions of its top line (GlassChat's owner-tuned
 -- values: top 0.45, glow 0.12, bottom 0.35), and the glow's depth.
@@ -198,6 +198,21 @@ end
 -- Range check that also rejects NaN (it fails every comparison).
 local function inRange(a, lo, hi)
     return type(a) == "number" and a >= lo and a <= hi
+end
+
+-- Dim a region to `dim` times the alpha it had (kept on it as glassBase while
+-- dimmed, so a consumer's own alpha survives), or with a nil `dim` give that
+-- alpha back. Dimming twice keeps the first base.
+local function dimRegion(r, dim)
+    if not r then return end
+    if dim then
+        if r.glassBase == nil then r.glassBase = r:GetAlpha() end
+        r.glassDim = dim
+        r:SetAlpha(r.glassBase * dim)
+    elseif r.glassBase ~= nil then
+        r:SetAlpha(r.glassBase)
+        r.glassBase, r.glassDim = nil, nil
+    end
 end
 
 -- Paint an edge: the top line's alpha, the glow's peak, the bottom line's, the
@@ -286,6 +301,7 @@ local function buildBody(inst, host, g, S)
     tint:SetAllPoints(host)
     tint:SetColorTexture(st.tint[1], st.tint[2], st.tint[3], st.tint[4])
     tint:AddMaskTexture(g.mask)
+    tint.glassColor = { st.tint[1], st.tint[2], st.tint[3], st.tint[4] }   -- r3: SetSurfaceTint(g) goes back to it
     g.tint = tint
 
     local grain = host:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -608,11 +624,18 @@ function lib.impl.SetTrackAlpha(inst, a)
 end
 
 -- Live-tune the bright rim's opacity on every glass surface built so far
--- (a disabled surface's rim stays dimmed by its own factor).
+-- (a disabled surface's rim takes it as its base and stays dimmed).
 function lib.impl.SetRimAlpha(inst, a)
     if not inRange(a, 0.2, 1) then return false end
     inst.STYLE.rimAlpha = a
-    for _, rim in ipairs(inst._rims) do rim:SetAlpha(a * (rim.glassDim or 1)) end
+    for _, rim in ipairs(inst._rims) do
+        if rim.glassBase ~= nil then
+            rim.glassBase = a
+            rim:SetAlpha(a * rim.glassDim)
+        else
+            rim:SetAlpha(a)
+        end
+    end
     return true
 end
 
@@ -644,37 +667,45 @@ function lib.impl.SetEdge(inst, g, top, glow, bottom, glowh)
 end
 
 -- One surface's own body tint (r3): an accent on one button, a near-opaque
--- dialog. No argument after g goes back to the instance's STYLE.tint. Only
--- this setter repaints g.tint's colour; no instance setter touches it.
+-- dialog. A nil alpha keeps the surface's built one; no colour at all goes
+-- back to the colour it was built with (an older copy's surface: STYLE.tint).
+-- Only this setter repaints g.tint's colour; no instance setter touches it.
+-- Plain numbers only: they are range-checked.
 function lib.impl.SetSurfaceTint(inst, g, r, gg, b, a)
-    if not g.tint then return false end
-    if r == nil and gg == nil and b == nil and a == nil then
-        local t = inst.STYLE.tint
-        r, gg, b, a = t[1], t[2], t[3], t[4]
-    elseif not (inRange(r, 0, 1) and inRange(gg, 0, 1) and inRange(b, 0, 1) and inRange(a, 0, 1)) then
+    if type(g) ~= "table" or not g.tint then return false end
+    local built = g.tint.glassColor or inst.STYLE.tint
+    if r == nil then
+        r, gg, b = built[1], built[2], built[3]
+    end
+    if a == nil then a = built[4] end
+    if not (inRange(r, 0, 1) and inRange(gg, 0, 1) and inRange(b, 0, 1) and inRange(a, 0, 1)) then
         return false
     end
     g.tint:SetColorTexture(r, gg, b, a)
     return true
 end
 
--- One surface's disabled look (r3): its tint, wash, dark rim, rim and edge
--- dimmed to STYLE.disabledAlpha, so an inactive control reads as inactive.
--- Region alphas only (SetAlpha), so it composes with SetSurfaceTint, SetEdge
--- and SetEdgeAlpha, which set colours; SetRimAlpha keeps the dim. Text on
--- g.top is the caller's to dim. Owns those regions' alpha while it is used.
+-- One surface's disabled look (r3): the alphas of its tint, grain, wash,
+-- dark rim, rim and edge scaled by STYLE.disabledAlpha, so an inactive
+-- control reads as inactive; enabling gives each region back the alpha it
+-- had (a consumer's own included). Region alpha only, so it composes with
+-- SetSurfaceTint, SetEdge and SetEdgeAlpha, which set colours; SetRimAlpha
+-- keeps a disabled rim dimmed. Text on g.top is the caller's to dim.
+-- `enabled` is truth-tested: pass a plain value.
 function lib.impl.SetSurfaceEnabled(inst, g, enabled)
-    local dim = (not enabled) and inst.STYLE.disabledAlpha or 1
-    for _, r in ipairs({ g.tint, g.wash, g.dark }) do r:SetAlpha(dim) end
-    if g.rim then
-        g.rim.glassDim = dim
-        g.rim:SetAlpha(inst.STYLE.rimAlpha * dim)
-    end
+    if type(g) ~= "table" or not g.tint then return false end
+    local dim = (not enabled) and inst.STYLE.disabledAlpha or nil
+    dimRegion(g.tint, dim)
+    dimRegion(g.grain, dim)
+    dimRegion(g.wash, dim)
+    dimRegion(g.dark, dim)
+    dimRegion(g.rim, dim)
     if g.edge then
-        g.edge.top:SetAlpha(dim)
-        g.edge.glow:SetAlpha(dim)
-        g.edge.bottom:SetAlpha(dim)
+        dimRegion(g.edge.top, dim)
+        dimRegion(g.edge.glow, dim)
+        dimRegion(g.edge.bottom, dim)
     end
+    return true
 end
 
 function lib.impl.SetFont(inst, key)

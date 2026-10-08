@@ -53,8 +53,9 @@ side by side.
   `Font(parent, size, justify?)`, `Sheen(g, host, w, h)`, `SetBar(bar, max, value, snap?)`,
   `Smooth()`, `Inset(size?)`, `ContentLevel(host)`, `SetFillAlpha`, `SetRimAlpha`,
   `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`,
-  `SetFont(key)`, `SetSurfaceTint(g, r, g, b, a)` and `SetSurfaceEnabled(g, enabled)` (r3,
-  per surface; `SetRimAlpha` keeps a disabled rim dimmed via `rim.glassDim`).
+  `SetFont(key)`, `SetSurfaceTint(g, r, g, b, a?)` and `SetSurfaceEnabled(g, enabled)` (r3,
+  per surface; disabling scales each region's own alpha and enabling gives it back, via
+  `glassBase`/`glassDim` on the region; `SetRimAlpha` keeps a disabled rim dimmed).
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
   `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 - **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
@@ -161,7 +162,9 @@ passes in, with one exception. **Colours passed to a glass bar's `SetStatusBarCo
 plain**: its hook compares RGB and alpha with the last colour (`==`), defaults the alpha
 (`a or 1`) and multiplies the alpha by `fillEnd` (v3 behaviour, kept for parity). Comparing or
 truth-testing a secret throws (porting guide §4, measured), so a secret colour would throw there.
-Supporting secret colours would mean reworking all three, not just the comparison.
+Supporting secret colours would mean reworking all three, not just the comparison. The tuning
+and per-surface setters (`SetRimAlpha`…, `SetSurfaceTint`, `SetSurfaceEnabled`) range-check or
+truth-test their arguments, so they take plain values too: secrets belong in bar values only.
 
 ## Workflow (sibling conventions)
 
