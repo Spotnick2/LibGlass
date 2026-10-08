@@ -388,6 +388,7 @@ for _, file in ipairs(RELEASES) do
                        SIZES = lib.SIZES, STYLE = A.STYLE, setRim = A.TUNABLES[2].set }
         local names = {}
         for i, n in ipairs(lib.FUNCTIONS) do names[i] = n end
+        local dimBefore = A.STYLE.disabledAlpha   -- nil before r3
         local before = logSizes()
 
         loadLibrary("GlassChat")
@@ -418,8 +419,8 @@ for _, file in ipairs(RELEASES) do
         lib.impl.OnBarColor = orig
         eq(calls, 1, r .. " upgraded: its bar hook runs this copy's body, once")
         -- r3's per-surface setters reach surfaces an older copy built.
-        -- An upgrade keeps an instance's disabledAlpha (r3 shipped 0.4) and fills it only where missing.
-        eq(A.STYLE.disabledAlpha, K >= 3 and 0.4 or lib.defaults.STYLE.disabledAlpha,
+        -- An upgrade keeps an instance's disabledAlpha and fills it only where missing.
+        eq(A.STYLE.disabledAlpha, dimBefore or lib.defaults.STYLE.disabledAlpha,
            r .. " upgraded: disabledAlpha kept, or filled with this copy's default")
         check(A.SetSurfaceTint(g, 0.2, 0.5, 0.3, 0.4), r .. " upgraded: SetSurfaceTint on an " .. r .. "-built rect")
         eq(g.tint._color[2], 0.5, r .. " upgraded: and paints it")
