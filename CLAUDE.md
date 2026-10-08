@@ -14,7 +14,7 @@ Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` th
 externals, and LibStub runs the newest copy loaded.
 
 **Status (2026-10-07): `r3` released** (tag on `87b3c04`: per-surface tint, disabled look and
-thin rims, for Time Is Money; not yet checked in game). `r2` is `ed57e53` (`Glass.Disc`, for
+thin rims, for Time Is Money; checked in game 2026-10-07, the disabled look still subtle). `r2` is `ed57e53` (`Glass.Disc`, for
 PortalRoulette, which pins `tag: r2`); `r1` is `562da7b`. GlassUnitFrames is the pilot consumer (Phase 2 done, pinned to
 `tag: r1`). Phase 3, the other Glass addons, is tracked in #3, with the
 per-addon guide at `C:\Projects\References\LIBGLASS-MIGRATION.md`. Phase 4 (#4) is the
