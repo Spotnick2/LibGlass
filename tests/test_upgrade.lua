@@ -418,14 +418,17 @@ for _, file in ipairs(RELEASES) do
         lib.impl.OnBarColor = orig
         eq(calls, 1, r .. " upgraded: its bar hook runs this copy's body, once")
         -- r3's per-surface setters reach surfaces an older copy built.
+        -- An upgrade keeps an instance's disabledAlpha (r3 shipped 0.4) and fills it only where missing.
+        eq(A.STYLE.disabledAlpha, K >= 3 and 0.4 or lib.defaults.STYLE.disabledAlpha,
+           r .. " upgraded: disabledAlpha kept, or filled with this copy's default")
         check(A.SetSurfaceTint(g, 0.2, 0.5, 0.3, 0.4), r .. " upgraded: SetSurfaceTint on an " .. r .. "-built rect")
         eq(g.tint._color[2], 0.5, r .. " upgraded: and paints it")
         A.SetSurfaceEnabled(g, false)
-        near(g.rim._alpha, 0.6 * 0.4, r .. " upgraded: SetSurfaceEnabled dims its rim")
-        eq(g.wash._alpha, 0.4, r .. " upgraded: and its wash")
+        near(g.rim._alpha, 0.6 * A.STYLE.disabledAlpha, r .. " upgraded: SetSurfaceEnabled dims its rim")
+        eq(g.wash._alpha, A.STYLE.disabledAlpha, r .. " upgraded: and its wash")
         if d then
             A.SetSurfaceEnabled(d, false)
-            near(d.rim._alpha, 0.6 * 0.4, r .. " upgraded: and an " .. r .. "-built disc")
+            near(d.rim._alpha, 0.6 * A.STYLE.disabledAlpha, r .. " upgraded: and an " .. r .. "-built disc")
         end
 
         WoW.reset(); WoW.resetLibStub()
