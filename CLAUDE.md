@@ -13,11 +13,11 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-07): `r3` released** (tag on `87b3c04`: per-surface tint, disabled look and thin
-rims, for Time Is Money; checked in game 2026-10-07; its 0.4 disabled look was subtle, so r4, #24,
-lowers the default to 0.25). `r2` is `ed57e53` (`Glass.Disc`, for PortalRoulette, which pins
-`tag: r2`); `r1` is `562da7b`. GlassUnitFrames is the pilot consumer (Phase 2 done, pinned to
-`tag: r1`). Phase 3, the other Glass addons, is tracked in #3, with the per-addon guide at
+**Status (2026-10-08): `r4` released** (tag on `330ef47`: the disabled look's default 0.4 → 0.25,
+#24). `r3` is `87b3c04` (per-surface tint, disabled look and thin rims, for Time Is Money; checked
+in game 2026-10-07). `r2` is `ed57e53` (`Glass.Disc`, for PortalRoulette, which pins `tag: r2`);
+`r1` is `562da7b`. GlassUnitFrames is the pilot consumer (Phase 2 done, pinned to `tag: r1`).
+Phase 3, the other Glass addons, is tracked in #3, with the per-addon guide at
 `C:\Projects\References\LIBGLASS-MIGRATION.md`. Phase 4 (#4) is the embedded-libraries guide.
 `docs/PLAN.md` is the approved plan (adversarially reviewed by Codex, findings reconciled in it).
 
