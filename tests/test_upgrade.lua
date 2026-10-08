@@ -362,7 +362,7 @@ end
 -- in place by this copy and is a no-op loading after it. r1's specifics are
 -- tested above; this part is generic, so rN joins by its file name.
 ------------------------------------------------------------------------------
-local RELEASES = { "LibGlass-r1.lua", "LibGlass-r2.lua" }
+local RELEASES = { "LibGlass-r1.lua", "LibGlass-r2.lua", "LibGlass-r3.lua" }
 for _, file in ipairs(RELEASES) do
     local copy = fixtureCopy(file)
     local src = copy[#copy].src
