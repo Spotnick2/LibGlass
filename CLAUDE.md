@@ -27,10 +27,10 @@ packager clones externals anonymously, so it must stay public). License: MIT.
 
 - **No TOC.** Entry point `LibGlass-1.0.xml`: `LibStub\LibStub.lua`, then `LibGlass.lua`.
 - **`LibGlass.lua`**: the one runtime file. `MAJOR, MINOR = "LibGlass-1.0", N`.
-- **`Media\`**: exactly the 23 textures the code names (r1: `bar_edge bar_fill bar_mask body_mask
+- **`Media\`**: exactly the 27 textures the code names (r1: `bar_edge bar_fill bar_mask body_mask
   body_mask_small gloss grain rim5 rim5_small rim_dark5 rim_dark5_small shadow shadow_small
   sheen2 track_fade`; r2: `disc_mask disc_rim disc_rim_dark disc_shadow` and their `_small`
-  versions). Generated, never hand-edited.
+  versions; r3: `rim_thin rim_dark_thin` and their `_small` versions). Generated, never hand-edited.
 - **`Tools\make_textures.py`**: the texture generator (Pillow + numpy).
   **`Tools\deploy.ps1`**: the helper consumers call to copy this checkout into
   `AddOns\<Addon>\Libs\LibGlass-1.0` (preflight: XML, Lua, all textures, LICENSE).
@@ -48,12 +48,13 @@ side by side.
 - **`LibGlass:New(opts?)`** returns a per-addon **instance**. Opts: `style` (overrides of
   `STYLE`), `font` (a `FONTS` key).
 - Instance functions, dot-called (`Glass.Apply(...)`, not `Glass:Apply`): `Apply(host,
-  "large"|"small") → g`, `Disc(host, "disc"|"disc_small") → g` (r2; square host, `g.edge` nil),
-  `Bar(parent, height)`, `Mask(host, file, margin, inset?, anchor?)` (`margin` nil = unsliced, r2),
+  "large"|"small"|"thin"|"thin_small") → g` (thin sizes r3), `Disc(host, "disc"|"disc_small")
+  → g` (r2; square host, `g.edge` nil), `Bar(parent, height)`, `Mask(host, file, margin, inset?, anchor?)` (`margin` nil = unsliced, r2),
   `Font(parent, size, justify?)`, `Sheen(g, host, w, h)`, `SetBar(bar, max, value, snap?)`,
   `Smooth()`, `Inset(size?)`, `ContentLevel(host)`, `SetFillAlpha`, `SetRimAlpha`,
   `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`,
-  `SetFont(key)`.
+  `SetFont(key)`, `SetSurfaceTint(g, r, g, b, a)` and `SetSurfaceEnabled(g, enabled)` (r3,
+  per surface; `SetRimAlpha` keeps a disabled rim dimmed via `rim.glassDim`).
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
   `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 - **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,

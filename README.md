@@ -47,6 +47,9 @@ bar:SetFrameLevel(Glass.ContentLevel(frame))
 local fs  = Glass.Font(g.top, 14, "LEFT")
 Glass.SetRimAlpha(0.5)                                -- affects only this instance's surfaces
 local d   = Glass.Disc(square, "disc")               -- r2: round glass on a square, sized host
+local b   = Glass.Apply(button, "thin_small")        -- r3: the thin rim, opt-in
+Glass.SetSurfaceTint(b, 0.18, 0.42, 0.22, 0.35)      -- r3: one surface's own tint
+Glass.SetSurfaceEnabled(b, false)                    -- r3: its disabled look
 ```
 
 ## API
@@ -56,7 +59,7 @@ local d   = Glass.Disc(square, "disc")               -- r2: round glass on a squ
 
 | Function | Since | |
 |---|---|---|
-| `Apply(host, "large"\|"small") → g` | r1 | the material on a rectangle (9-sliced) |
+| `Apply(host, "large"\|"small") → g` | r1 | the material on a rectangle (9-sliced); r3 adds `"thin"`\|`"thin_small"`, the same with a thinner, subtler rim |
 | `Disc(host, "disc"\|"disc_small") → g` | r2 | the material on a circle, unsliced; `host` square and sized first; `g.edge` is `nil`; `"disc_small"` under ~96px |
 | `Bar(parent, height) → bar` | r1 | a glass StatusBar |
 | `Mask(host, file, margin, inset?, anchor?)` | r1 | a rounded mask; `margin == nil` (r2) = unsliced |
@@ -65,9 +68,10 @@ local d   = Glass.Disc(square, "disc")               -- r2: round glass on a squ
 | `SetBar(bar, max, value, snap?)`, `Smooth()` | r1 | eased bar values (secrets welcome) |
 | `Inset(size?)`, `ContentLevel(host)` | r1 | content inset (px) and frame level; for `disc`/`disc_small` the inset is in texture px (256 / 64): scale it by host size ÷ texture size |
 | `SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`, `SetFont(key)` | r1 | live setters, this instance's surfaces only (`SetRimAlpha` reaches discs) |
+| `SetSurfaceTint(g, r, g, b, a)`, `SetSurfaceEnabled(g, enabled)` | r3 | one surface: its own tint (`(g)` = back to `STYLE.tint`), its disabled look (dimmed to `STYLE.disabledAlpha`) |
 
 Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`large`, `small`,
-and from r2 `disc`, `disc_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
+from r2 `disc`, `disc_small`, from r3 `thin`, `thin_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 Region fields: `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
 `bar.{glassMask,track,trackClip,overlay,trackColor}`.
 

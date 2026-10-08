@@ -97,7 +97,9 @@ local function scenario(Glass)
     for _, k in ipairs({ "STYLE", "EDGE" }) do
         local t = Glass[k]
         local ks = {}
-        for key in pairs(t) do ks[#ks + 1] = key end
+        for key in pairs(t) do
+            if key ~= "disabledAlpha" then ks[#ks + 1] = key end   -- added in r3 (SetSurfaceEnabled)
+        end
         table.sort(ks)
         for _, key in ipairs(ks) do
             local v = t[key]

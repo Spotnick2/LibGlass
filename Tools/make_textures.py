@@ -3,8 +3,9 @@
     python Tools/make_textures.py
 
 The generator is the source of truth; the .tga files are committed outputs.
-It writes exactly the 23 textures LibGlass.lua names (tests/test_media.lua
-checks Media/ against the code): the 15 of r1 and the 8 disc textures of r2.
+It writes exactly the 27 textures LibGlass.lua names (tests/test_media.lua
+checks Media/ against the code): the 15 of r1, the 8 disc textures of r2 and
+the 4 thin rims of r3.
 Lifted from GlassUnitFrames @ 09b6f0d,
 without the probe's earlier iterations (rim..rim4, sheen, late), which stay
 with GlassProbe. Never rename an output: frames built earlier keep the path.
@@ -101,17 +102,19 @@ def circle_sdf(size, inset, radius=None, dy=0.0):
     return np.hypot(xs - c, ys - (c + dy)) - r
 
 
-def glass_rim(size, radius, k, light=1.0):
+def glass_rim(size, radius, k, light=1.0, depth=1.0):
     """The style-4 glass rim and its dark companion, at any size.
 
     k scales every distance (bevel width, lips, glints) from the 64px design,
     so a 32px, radius-7 texture with k=0.5 is the same material, smaller.
     light scales every highlight (not the dark companion).
+    depth scales only the bevel (the slab and the inner lip move towards the
+    outer lip; the lips keep their width): the thin rims.
     Returns (rim, dark) as RGBA float arrays.
     """
     d = rounded_rect_sdf(size, size, 0.5, radius)
     c = 6.5 * k                                   # glint centre: on the top corner arcs, near the outer lip
-    return glass_lighting(d, ((c, c), (size - c, c)), k, light)
+    return glass_lighting(d, ((c, c), (size - c, c)), k, light, depth)
 
 
 def disc_rim(size, k, light=1.0):
@@ -141,23 +144,25 @@ def disc_shadow(size, outset, sigma, drop, alpha):
     return black(shadow * np.clip(edge / sigma, 0, 1))
 
 
-def glass_lighting(d, glints, k, light):
+def glass_lighting(d, glints, k, light, depth=1.0):
     """The rim's four alpha layers and its dark companion, from any shape's SDF
-    `d` (square texture) and the centres of its two glints."""
+    `d` (square texture) and the centres of its two glints. `depth` scales the
+    bevel's inner distances only (1 = the r1/r2 textures, byte for byte)."""
+    b = k * depth                                 # the bevel's scale: inner lip, slab, dark inner line
     size = d.shape[0]
     nx, ny = normals(d)
     top, bottom, left = np.maximum(-ny, 0), np.maximum(ny, 0), np.maximum(-nx, 0)
     ys, xs = np.mgrid[0:size, 0:size].astype(np.float64) + 0.5
     outer = band(d, -1.4 * k, -0.3 * k, 0.5) * (0.28 + 0.72 * top ** 0.5 + 0.35 * left ** 1.5 + 0.30 * bottom ** 2)
-    inner = band(d, -7.6 * k, -6.6 * k, 0.5) * (0.14 + 0.45 * bottom ** 0.7 + 0.18 * top ** 2)
+    inner = band(d, -7.6 * b, -7.6 * b + 1.0 * k, 0.5) * (0.14 + 0.45 * bottom ** 0.7 + 0.18 * top ** 2)
     vert = 1 - ys / size                          # 1 at the top, 0 at the bottom
-    slab = band(d, -7.0 * k, -0.5 * k, 0.6) * (0.05 + 0.13 * vert ** 1.5 + 0.06 * top)
+    slab = band(d, -7.0 * b, -0.5 * k, 0.6) * (0.05 + 0.13 * vert ** 1.5 + 0.06 * top)
     glint = np.zeros_like(d)
     for gx, gy in glints:
         glint += np.exp(-(((xs - gx) ** 2 + (ys - gy) ** 2) / (2 * (2.2 * k) ** 2))) * 0.85
     glint *= band(d, -3.5 * k, -0.2 * k, 0.6)
     rim = white(np.clip(np.maximum.reduce([outer, inner, slab, glint]) * light, 0, 1))
-    dark = black(np.clip(band(d, -0.6 * k, 0.3 * k, 0.5) * 0.45 + band(d, -8.8 * k, -7.6 * k, 0.6) * 0.18, 0, 1))
+    dark = black(np.clip(band(d, -0.6 * k, 0.3 * k, 0.5) * 0.45 + band(d, -7.6 * b - 1.2 * k, -7.6 * b, 0.6) * 0.18, 0, 1))
     return rim, dark
 
 
@@ -229,6 +234,16 @@ def main():
         rim, dark = glass_rim(size, radius, k, light=0.8)
         write_tga(name, rim)
         write_tga(name.replace("rim5", "rim_dark5"), dark)
+
+    # Thin rims (r3, the "thin" and "thin_small" sizes): an outside critique
+    # of a window with many small buttons found rim5's repeated bevel "more
+    # moulded plastic than glass". The same lips and glints, the bevel at
+    # 0.55x depth (inner lip ~3px in from the edge on the large one, ~1.5px on
+    # the small) and highlights at 0.65x. Content inset 4 / 2 px.
+    for name, size, radius, k in (("rim_thin", 64, 14, 0.72), ("rim_thin_small", 32, 7, 0.36)):
+        rim, dark = glass_rim(size, radius, k, light=0.65, depth=0.55)
+        write_tga(name, rim)
+        write_tga(name.replace("rim_thin", "rim_dark_thin"), dark)
 
     # Softer, narrower sheen that does not wash out text.
     ys, xs = np.mgrid[0:64, 0:256].astype(np.float64) + 0.5

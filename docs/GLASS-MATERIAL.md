@@ -77,8 +77,10 @@ Conventions that prevent halos and keep colour a runtime choice:
 | `disc_rim`, `disc_rim_dark` | 256 | circle / unsliced | The rim material on a circle, and its dark companion |
 | `disc_shadow` | 256 | unsliced, outset 0.125 | Soft drop shadow for a disc |
 | `disc_mask_small`, `disc_rim_small`, `disc_rim_dark_small`, `disc_shadow_small` | 64 | circle / unsliced | The same at 64px, for discs under ~96px |
+| `rim_thin`, `rim_dark_thin` | 64 | r14 / 16 | The thin rim (r3, size `"thin"`): rim5's lips and glints, a shallower bevel, dimmer |
+| `rim_thin_small`, `rim_dark_thin_small` | 32 | r7 / 8 | The same at half scale (size `"thin_small"`) |
 
-These 23 are all `Media\` holds (`tests/test_media.lua` checks it against the code). The earlier
+These 27 are all `Media\` holds (`tests/test_media.lua` checks it against the code). The earlier
 iterations (`rim`…`rim4`, `sheen`) stay with GlassUnitFrames' `Tools/GlassProbe` for its A/B
 comparison. **Texture names are part of the contract:** a frame keeps the path it was built with,
 so a file is never renamed or repurposed within `LibGlass-1.0`; add a new one instead.
@@ -101,9 +103,21 @@ faint line at the inner lip.
 Current parameters: `rim5` = `glass_rim(64, 14, k=0.72, light=0.8)`, and
 `rim5_small` = `glass_rim(32, 7, k=0.36, light=0.8)`.
 
-The four layers live in `glass_lighting(d, glints, k, light)`, which takes any shape's SDF;
-`glass_rim` gives it the rounded rect and the two corner glints (the rect textures are
+The four layers live in `glass_lighting(d, glints, k, light, depth=1)`, which takes any shape's
+SDF; `glass_rim` gives it the rounded rect and the two corner glints (the rect textures are
 byte-identical to r1's).
+
+### The thin rims (r3), `glass_rim(..., depth)`
+
+`depth` scales only the bevel: the inner lip, the slab's inner edge and the dark companion's
+inner line move towards the outer lip, while the lips keep their width and the glints their place
+(`depth = 1` gives the r1/r2 textures byte for byte). `rim_thin` = `glass_rim(64, 14, k=0.72,
+light=0.65, depth=0.55)`, `rim_thin_small` = `glass_rim(32, 7, k=0.36, light=0.65, depth=0.55)`:
+the inner lip sits ~3 px in from the edge (rim5: ~5.5) on the large one and ~1.5 px (rim5_small:
+~2.7) on the small, and every highlight is at 0.65 of the design (rim5: 0.8). The content inset
+follows: 4 / 2 px (rim5: 6 / 3). From an outside critique of Time Is Money's window, many small
+buttons in one view: rim5's repeated bevel read "more moulded plastic than glass". **Opt-in**, as
+the sizes `"thin"` / `"thin_small"`: every existing surface keeps rim5.
 
 ### The discs (r2), `circle_sdf`, `disc_rim`, `disc_shadow`
 
@@ -166,6 +180,22 @@ which is `nil` (a circle has no top line):
   `Glass.Mask(child, "disc_mask", nil, inset, host)`, then `tex:AddMaskTexture(m)`.
 - `SetEdge(g, ...)` on a disc does nothing, and `SetEdgeAlpha` never reaches one.
 
+**Thin sizes (r3).** `Glass.Apply(host, "thin"|"thin_small")` is `"large"`/`"small"` with the thin
+rim (§3) and its inset (`Glass.Inset("thin")` = 4, `"thin_small"` = 2): same mask, shadow, slice
+margins, edge and sheen. Opt-in per surface, so nothing already built changes.
+
+**Per-surface options (r3).** Two setters act on one surface (`g` from `Apply` or `Disc`):
+
+| Setter | What it does | Owns |
+|---|---|---|
+| `Glass.SetSurfaceTint(g, r, g, b, a)` | that surface's body tint: an accent on one button (a restrained green), a near-opaque body for a dialog over busy content (alpha ~0.9). `SetSurfaceTint(g)` goes back to the instance's current `STYLE.tint`. Returns `false` (and changes nothing) unless all four are numbers in 0..1 | `g.tint`'s colour; no instance setter touches it |
+| `Glass.SetSurfaceEnabled(g, enabled)` | the disabled look: a falsy `enabled` (as the client's `SetEnabled`) dims `g.tint`, `g.wash`, `g.dark`, `g.rim` and the edge's three lines to `STYLE.disabledAlpha` (0.4); a truthy one restores them. Grain and shadow are left alone; text is the caller's to dim | those regions' alpha (`SetAlpha`) |
+
+They compose: the dim is region alpha, while `SetSurfaceTint`, `SetEdge` and `SetEdgeAlpha` set
+colours, so a disabled accent button keeps its green, dimmed. `SetRimAlpha` keeps a disabled rim at
+`rimAlpha × disabledAlpha` (the factor is stored on the rim as `rim.glassDim`). Both work on
+surfaces an older copy built (they use only r1's region fields).
+
 A glass bar (`Glass.Bar`), bottom to top:
 
 | Part | Where | Notes |
@@ -183,7 +213,7 @@ A glass bar (`Glass.Bar`), bottom to top:
 one definition. Each instance has its own list, its setters bound to it.
 
 Every setter (`SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`,
-`SetFont`) touches only the surfaces built through **its own instance**, and the bar hooks paint
+`SetFont`, and the per-surface `SetSurfaceTint`, `SetSurfaceEnabled`) touches only the surfaces built through **its own instance**, and the bar hooks paint
 with the bar's own instance's `STYLE`.
 
 A `SetStatusBarColor` hook re-tints the fill and the track only when the colour actually changes
@@ -256,6 +286,9 @@ local fs  = Glass.Font(g.top, 14, "LEFT")        -- text above the rim
 local ag  = Glass.Sheen(g, frame, width, height) -- optional: ag:Stop(); ag:Play()
 local d   = Glass.Disc(square, "disc")           -- r2: a round surface on a square, sized host
                                                  -- ("disc_small" under ~96px)
+local b   = Glass.Apply(button, "thin_small")    -- r3: the thin rim, opt-in ("thin" for large)
+Glass.SetSurfaceTint(b, 0.18, 0.42, 0.22, 0.35)  -- r3: this surface's own tint; (b) = back to STYLE
+Glass.SetSurfaceEnabled(b, button:IsEnabled())   -- r3: dimmed while disabled
 Glass.SetFont("friz")                            -- restyles this instance's Glass.Font strings
 Glass.SetRimAlpha(0.5)                           -- this instance's surfaces only
 ```
@@ -273,8 +306,10 @@ Glass.SetRimAlpha(0.5)                           -- this instance's surfaces onl
   (Phase 4 of `docs/PLAN.md`).
 - **Region fields** you may retint, re-alpha or hide: `g.{size,shadow,mask,tint,grain,wash,top,
   dark,rim,edge}` (on a disc, `g.edge` is `nil`) and `bar.{glassMask,track,trackClip,overlay,trackColor}`. What the library
-  repaints later is only what a setter owns (every rim's alpha after `SetRimAlpha`) and a bar's
-  fill and track when its colour changes; an upgrade repaints nothing.
+  repaints later is only what a setter owns (every rim's alpha after `SetRimAlpha`; `g.tint`'s
+  colour after `SetSurfaceTint`; the alpha of the tint, wash, rims and edge after
+  `SetSurfaceEnabled`) and a bar's fill and track when its colour changes; an upgrade repaints
+  nothing. Prefer the per-surface setters to retinting `g.tint` by hand.
 
 **Upgrades.** Within `LibGlass-1.0` the API only grows: nothing above is removed, renamed or
 changes meaning (a breaking change is `LibGlass-2.0`, side by side). When a newer copy loads after
@@ -330,4 +365,5 @@ library.
 | Style 5 (current) | Style 4's rim at 0.72x width and 0.8x light, content inset 8→6, portrait gap 6→3, width 360→300 | From an outside review: style 4 "looks a little like a clear plastic case". **Approved in game**, then tuned live with `/glass fill|rim|track|fade`: fill 0.60, rim 0.70, a colour-tinted track that fades to clear, fill fade off (2026-09-27/28). |
 | Edge (optional, #60) | A directional edge: fine bright top line + short glow, dark bottom line | From GlassChat: two outside critiques of its chat panel ("the thick translucent perimeter still gives it a molded-plastic appearance"; "a narrow highlight fading around the corners"), then the owner's in-game pick there: top 0.45, glow 0.12 over 4px, bottom 0.35, with the rim and dark rim at 0.10 and no shadow or grain. Added **off by default**, so no addon's look changes; GlassUF exposes it as `/glass edge` and an options slider to try on the unit frames (2026-10-03). |
 | LibGlass-1.0 r1 | `Glass.lua` v3 extracted into an embedded library with per-addon instances | No look change: `tests/test_parity.lua` builds the same surfaces with the frozen v3 file and with the library and compares every widget call. The textures moved to the library's folder (2026-10-04). |
+| LibGlass-1.0 r3 | Per-surface options (#18): `SetSurfaceTint`, `SetSurfaceEnabled` (`STYLE.disabledAlpha` 0.4), and the opt-in `"thin"`/`"thin_small"` sizes (4 new textures, depth 0.55, light 0.65) | Asked for by Time Is Money after an outside UX critique: near-opaque dialogs, one accent button, a disabled look, a less moulded rim on a window full of small buttons. No default changes (parity passes; the 23 earlier textures regenerate byte-identical). **Not yet checked in game**: the thin rim's depth and light and the 0.4 dim are first values. |
 | LibGlass-1.0 r2 | `Glass.Disc`: the material on a circle (8 new textures, all unsliced), for PortalRoulette's arcane wheel | Rects unchanged (the parity test still passes, and the 15 r1 textures regenerate byte-identical). **Approved in game** (2026-10-05): discs at 320, 64 and 40 px over bright sky, clouds and dark scenery; top light reads, glints as subtle as `rim5`'s, small discs clean, no shadow halo on dark. `disc_small`'s inset is 4, past its inner catch-light (3.8 texture px). |
