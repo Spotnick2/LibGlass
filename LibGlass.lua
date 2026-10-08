@@ -30,7 +30,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 3
+local MAJOR, MINOR = "LibGlass-1.0", 4
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -134,7 +134,8 @@ lib.defaults.STYLE = {
     frost = 0.10,                        -- plus a white frost, 0 at the bottom to this at the top
     sheenAlpha = 0.8,
     edge = 0,                            -- the optional directional edge's top line (0 = off; GlassChat ships 0.45)
-    disabledAlpha = 0.4,                 -- r3: SetSurfaceEnabled(g, false) scales the body, rims and edge by this
+    disabledAlpha = 0.25,                -- r3: SetSurfaceEnabled(g, false) scales the body, rims and edge by this
+                                         -- (r4: 0.25; r3's 0.4 was subtle at button size in game)
 }
 -- The directional edge, as fractions of its top line (GlassChat's owner-tuned
 -- values: top 0.45, glow 0.12, bottom 0.35), and the glow's depth.
