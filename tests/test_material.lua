@@ -193,6 +193,108 @@ Glass.Smooth = smooth
 Enum.StatusBarInterpolation = nil
 
 ------------------------------------------------------------------------------
+-- Per-surface options (r3, #18): one surface's own tint, its disabled look,
+-- and the opt-in thin rim. Instance setters leave the per-surface state alone,
+-- and a consumer's own alphas on the regions survive a disable and enable.
+------------------------------------------------------------------------------
+do
+    local S = LibGlass:New()
+    local hA, hB = newHost(), newHost(120, 24)
+    local a, b = S.Apply(hA, "large"), S.Apply(hB, "small")
+    local disc = S.Disc(newHost(64, 64), "disc_small")
+
+    -- Tint: an accent on one surface, a near-opaque body on another.
+    check(S.SetSurfaceTint(a, 0.2, 0.6, 0.3, 0.9), "SetSurfaceTint accepts a colour")
+    local c = a.tint._color
+    check(c[1] == 0.2 and c[2] == 0.6 and c[3] == 0.3 and c[4] == 0.9, "and paints that surface's tint")
+    eq(b.tint._color[2], 0.16, "the other surface keeps the instance tint")
+    check(S.SetSurfaceTint(disc, 0, 0, 0, 0.8), "a disc too")
+    check(S.SetSurfaceTint(b, 0.2, 0.6, 0.3), "no alpha: accepted")
+    eq(b.tint._color[4], 0.24, "keeping the surface's built translucency")
+    check(not S.SetSurfaceTint(a, 0 / 0, 0, 0, 1), "NaN is refused")
+    check(not S.SetSurfaceTint(a, 2, 0, 0, 1), "out of range is refused")
+    check(not S.SetSurfaceTint(a, 0.2, nil, 0.3, 1), "a missing channel is refused")
+    eq(a.tint._color[4], 0.9, "and a refusal leaves the tint")
+    S.SetRimAlpha(0.5); S.SetFillAlpha(0.5); S.SetEdgeAlpha(0.3)
+    eq(a.tint._color[4], 0.9, "instance setters leave a surface's tint alone")
+    S.STYLE.tint = { 0.1, 0.1, 0.1, 0.3 }   -- AltStable changes STYLE between Applies
+    check(S.SetSurfaceTint(a), "no colour: back to the built one")
+    eq(a.tint._color[4], 0.24, "the colour it was built with, not the current STYLE")
+    eq(a.tint._color[2], 0.16, "all of it")
+    local later = S.Apply(newHost(), "large")
+    S.SetSurfaceTint(later, 1, 1, 1, 1); S.SetSurfaceTint(later)
+    eq(later.tint._color[4], 0.3, "a surface built after the change goes back to its own")
+    rawset(later.tint, "glassColor", nil)   -- a surface an older copy built
+    check(S.SetSurfaceTint(later) and later.tint._color[4] == 0.3, "without a record: the instance's STYLE.tint")
+    check(S.SetSurfaceTint({}, 0, 0, 0, 1) == false, "a table that isn't a surface is refused")
+    check(S.SetSurfaceTint(nil, 0, 0, 0, 1) == false, "and nil")
+
+    -- Disabled: each region's own alpha scaled, and given back on enable.
+    eq(S.STYLE.disabledAlpha, 0.4, "the shipped dim")
+    a.wash:SetAlpha(0.2)                     -- a consumer's own alphas (PortalRoulette's panels)
+    a.dark:SetAlpha(0.5)
+    check(S.SetSurfaceEnabled(a, false), "SetSurfaceEnabled returns true")
+    eq(a.tint._alpha, 0.4, "disabled: tint dimmed")
+    near(a.wash._alpha, 0.2 * 0.4, "wash scaled from the consumer's alpha, not raised")
+    near(a.dark._alpha, 0.5 * 0.4, "dark rim scaled")
+    near(a.grain._alpha, 0.45 * 0.4, "grain scaled with the body")
+    near(a.rim._alpha, 0.5 * 0.4, "rim scaled")
+    check(a.edge.top._alpha == 0.4 and a.edge.glow._alpha == 0.4 and a.edge.bottom._alpha == 0.4, "edge dimmed")
+    eq(a.tint._color[4], 0.24, "the tint's colour untouched")
+    eq(a.shadow._alpha, nil, "shadow untouched")
+    eq(b.rim._alpha, 0.5, "the other surface stays enabled")
+    S.SetSurfaceEnabled(a, false)
+    near(a.wash._alpha, 0.2 * 0.4, "disabling twice doesn't dim twice")
+    S.SetRimAlpha(0.8)
+    near(a.rim._alpha, 0.8 * 0.4, "SetRimAlpha keeps a disabled rim dimmed")
+    eq(b.rim._alpha, 0.8, "and sets the enabled ones")
+    S.SetEdgeAlpha(0.6)
+    eq(a.edge.top._alpha, 0.4, "SetEdgeAlpha keeps a disabled edge dimmed")
+    eq(a.edge.top._color[4], 0.6, "while setting its colour")
+    S.SetSurfaceTint(a, 0.2, 0.6, 0.3, 0.9)
+    eq(a.tint._alpha, 0.4, "a tint change keeps the dim")
+    check(S.SetSurfaceEnabled(a, true), "enabling returns true")
+    check(a.tint._alpha == 1 and a.edge.top._alpha == 1, "enabled again: undimmed")
+    eq(a.wash._alpha, 0.2, "the consumer's wash given back")
+    eq(a.dark._alpha, 0.5, "and dark rim")
+    eq(a.grain._alpha, 0.45, "and grain")
+    eq(a.rim._alpha, 0.8, "the rim at the alpha SetRimAlpha set meanwhile")
+    S.SetRimAlpha(0.7)
+    eq(a.rim._alpha, 0.7, "re-enabled rims follow SetRimAlpha again")
+    S.SetSurfaceEnabled(a, true)
+    eq(a.wash._alpha, 0.2, "enabling an enabled surface changes nothing")
+    b.rim:SetAlpha(0.3)                      -- a consumer's own rim alpha
+    S.SetSurfaceEnabled(b, false)
+    near(b.rim._alpha, 0.3 * 0.4, "a consumer's rim alpha is the base")
+    S.SetSurfaceEnabled(b, true)
+    eq(b.rim._alpha, 0.3, "and comes back")
+    S.SetSurfaceEnabled(disc, false)
+    near(disc.rim._alpha, 0.7 * 0.4, "a disc dims too (no edge)")
+    S.SetSurfaceEnabled(disc, true)
+    S.SetSurfaceEnabled(disc, nil)
+    near(disc.rim._alpha, 0.7 * 0.4, "nil disables, as the client's SetEnabled")
+    check(S.SetSurfaceEnabled({}, false) == false and S.SetSurfaceEnabled(nil, false) == false,
+          "a table that isn't a surface, or nil, is refused")
+
+    -- Thin rims: a size, opt-in; everything else as large / small.
+    local t, ts = S.Apply(newHost(), "thin"), S.Apply(newHost(120, 24), "thin_small")
+    eq(t.rim._file, MEDIA .. "rim_thin", "thin: the thin rim")
+    eq(t.dark._file, MEDIA .. "rim_dark_thin", "and its dark companion")
+    eq(ts.rim._file, MEDIA .. "rim_thin_small", "thin_small: the small thin rim")
+    eq(ts.dark._file, MEDIA .. "rim_dark_thin_small", "and its dark companion")
+    eq(t.rim._slice[1], 16, "sliced like large")
+    eq(ts.rim._slice[1], 8, "and thin_small like small")
+    eq(t.mask._file, a.mask._file, "the large body mask")
+    eq(a.rim._file, MEDIA .. "rim5", "large keeps rim5")
+    eq(t.size, "thin", "g.size names the size")
+    eq(S.Inset("thin"), 4, "thin inset")
+    eq(S.Inset("thin_small"), 2, "thin_small inset")
+    check(t.edge and pcall(S.Sheen, t, newHost(), 200, 40), "edge and sheen work on thin")
+    S.SetRimAlpha(0.6)
+    eq(t.rim._alpha, 0.6, "SetRimAlpha reaches thin rims")
+end
+
+------------------------------------------------------------------------------
 -- New: a colon call and a known font, or a loud error.
 ------------------------------------------------------------------------------
 local okDot, errDot = pcall(LibGlass.New, { style = { rimAlpha = 1 } })

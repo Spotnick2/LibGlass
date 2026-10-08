@@ -8,6 +8,8 @@
 --   local Glass = LibStub("LibGlass-1.0"):New(opts?)   -- one instance per addon
 --   local g = Glass.Apply(frame, "large")              -- dot-called, as before
 --   local d = Glass.Disc(square, "disc")               -- r2: the round variant
+--   Glass.SetSurfaceTint(g, r, g, b, a)                -- r3: one surface's own tint
+--   Glass.SetSurfaceEnabled(g, false)                  -- r3: its disabled look
 --
 -- Layer stack on a host frame, bottom to top:
 --   shadow -> tint -> grain -> wash      (on the host, masked to a rounded rect)
@@ -28,7 +30,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 2
+local MAJOR, MINOR = "LibGlass-1.0", 3
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -84,6 +86,8 @@ end
 -- own size (256 / 64 px; scale it by host size / texture size), and the shadow is outset on every side by
 -- `shadowOutset` times the host's size, so the texture's disc lines up with
 -- the host at any size. "disc" from ~96px up, "disc_small" below.
+-- The thin sets (r3) are the rect sets with a thinner, subtler rim (opt-in:
+-- the shared look stays rim5) and the inset that follows its bevel.
 lib.SIZES = fill(lib.SIZES or {}, {
     large = { mask = "body_mask", maskMargin = 16, rim = "rim5", dark = "rim_dark5", rimMargin = 16,
               shadow = "shadow", shadowMargin = 48, shadowPad = { -22, 20, 22, -26 }, inset = 6 },
@@ -93,6 +97,11 @@ lib.SIZES = fill(lib.SIZES or {}, {
              shadow = "disc_shadow", shadowOutset = 0.125, inset = 6 },
     disc_small = { shape = "disc", mask = "disc_mask_small", rim = "disc_rim_small", dark = "disc_rim_dark_small",
                    shadow = "disc_shadow_small", shadowOutset = 0.125, inset = 4 },
+    thin = { mask = "body_mask", maskMargin = 16, rim = "rim_thin", dark = "rim_dark_thin", rimMargin = 16,
+             shadow = "shadow", shadowMargin = 48, shadowPad = { -22, 20, 22, -26 }, inset = 4 },
+    thin_small = { mask = "body_mask_small", maskMargin = 8, rim = "rim_thin_small", dark = "rim_dark_thin_small",
+                   rimMargin = 8, shadow = "shadow_small", shadowMargin = 24, shadowPad = { -12, 10, 12, -14 },
+                   inset = 2 },
 })
 
 -- Client-shipped fonts only. Arial Narrow runs small, so it gets a point more.
@@ -125,6 +134,7 @@ lib.defaults.STYLE = {
     frost = 0.10,                        -- plus a white frost, 0 at the bottom to this at the top
     sheenAlpha = 0.8,
     edge = 0,                            -- the optional directional edge's top line (0 = off; GlassChat ships 0.45)
+    disabledAlpha = 0.4,                 -- r3: SetSurfaceEnabled(g, false) scales the body, rims and edge by this
 }
 -- The directional edge, as fractions of its top line (GlassChat's owner-tuned
 -- values: top 0.45, glow 0.12, bottom 0.35), and the glow's depth.
@@ -166,7 +176,7 @@ do
     for _, name in ipairs(lib.FUNCTIONS) do have[name] = true end
     for _, name in ipairs({ "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
                             "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
-                            "SetFont", "Disc" }) do
+                            "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled" }) do
         if not have[name] then
             table.insert(lib.FUNCTIONS, name)
             have[name] = true
@@ -188,6 +198,21 @@ end
 -- Range check that also rejects NaN (it fails every comparison).
 local function inRange(a, lo, hi)
     return type(a) == "number" and a >= lo and a <= hi
+end
+
+-- Dim a region to `dim` times the alpha it had (kept on it as glassBase while
+-- dimmed, so a consumer's own alpha survives), or with a nil `dim` give that
+-- alpha back. Dimming twice keeps the first base.
+local function dimRegion(r, dim)
+    if not r then return end
+    if dim then
+        if r.glassBase == nil then r.glassBase = r:GetAlpha() end
+        r.glassDim = dim
+        r:SetAlpha(r.glassBase * dim)
+    elseif r.glassBase ~= nil then
+        r:SetAlpha(r.glassBase)
+        r.glassBase, r.glassDim = nil, nil
+    end
 end
 
 -- Paint an edge: the top line's alpha, the glow's peak, the bottom line's, the
@@ -276,6 +301,7 @@ local function buildBody(inst, host, g, S)
     tint:SetAllPoints(host)
     tint:SetColorTexture(st.tint[1], st.tint[2], st.tint[3], st.tint[4])
     tint:AddMaskTexture(g.mask)
+    tint.glassColor = { st.tint[1], st.tint[2], st.tint[3], st.tint[4] }   -- r3: SetSurfaceTint(g) goes back to it
     g.tint = tint
 
     local grain = host:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -597,11 +623,19 @@ function lib.impl.SetTrackAlpha(inst, a)
     return true
 end
 
--- Live-tune the bright rim's opacity on every glass surface built so far.
+-- Live-tune the bright rim's opacity on every glass surface built so far
+-- (a disabled surface's rim takes it as its base and stays dimmed).
 function lib.impl.SetRimAlpha(inst, a)
     if not inRange(a, 0.2, 1) then return false end
     inst.STYLE.rimAlpha = a
-    for _, rim in ipairs(inst._rims) do rim:SetAlpha(a) end
+    for _, rim in ipairs(inst._rims) do
+        if rim.glassBase ~= nil then
+            rim.glassBase = a
+            rim:SetAlpha(a * rim.glassDim)
+        else
+            rim:SetAlpha(a)
+        end
+    end
     return true
 end
 
@@ -630,6 +664,48 @@ function lib.impl.SetEdge(inst, g, top, glow, bottom, glowh)
     if not g.edge then return end   -- a surface from older code may lack it
     g.edge.custom = true
     paintEdge(g.edge, top, glow, bottom, glowh or inst.EDGE.glowh)
+end
+
+-- One surface's own body tint (r3): an accent on one button, a near-opaque
+-- dialog. A nil alpha keeps the surface's built one; no colour at all goes
+-- back to the colour it was built with (an older copy's surface: STYLE.tint).
+-- Only this setter repaints g.tint's colour; no instance setter touches it.
+-- Plain numbers only: they are range-checked.
+function lib.impl.SetSurfaceTint(inst, g, r, gg, b, a)
+    if type(g) ~= "table" or not g.tint then return false end
+    local built = g.tint.glassColor or inst.STYLE.tint
+    if r == nil then
+        r, gg, b = built[1], built[2], built[3]
+    end
+    if a == nil then a = built[4] end
+    if not (inRange(r, 0, 1) and inRange(gg, 0, 1) and inRange(b, 0, 1) and inRange(a, 0, 1)) then
+        return false
+    end
+    g.tint:SetColorTexture(r, gg, b, a)
+    return true
+end
+
+-- One surface's disabled look (r3): the alphas of its tint, grain, wash,
+-- dark rim, rim and edge scaled by STYLE.disabledAlpha, so an inactive
+-- control reads as inactive; enabling gives each region back the alpha it
+-- had (a consumer's own included). Region alpha only, so it composes with
+-- SetSurfaceTint, SetEdge and SetEdgeAlpha, which set colours; SetRimAlpha
+-- keeps a disabled rim dimmed. Text on g.top is the caller's to dim.
+-- `enabled` is truth-tested: pass a plain value.
+function lib.impl.SetSurfaceEnabled(inst, g, enabled)
+    if type(g) ~= "table" or not g.tint then return false end
+    local dim = (not enabled) and inst.STYLE.disabledAlpha or nil
+    dimRegion(g.tint, dim)
+    dimRegion(g.grain, dim)
+    dimRegion(g.wash, dim)
+    dimRegion(g.dark, dim)
+    dimRegion(g.rim, dim)
+    if g.edge then
+        dimRegion(g.edge.top, dim)
+        dimRegion(g.edge.glow, dim)
+        dimRegion(g.edge.bottom, dim)
+    end
+    return true
 end
 
 function lib.impl.SetFont(inst, key)

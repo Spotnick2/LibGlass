@@ -16,7 +16,7 @@ for _, S in pairs(lib.SIZES) do
 end
 -- And what the builders actually set, so a name built some other way counts.
 local Glass = lib:New()
-for _, size in ipairs({ "large", "small" }) do
+for _, size in ipairs({ "large", "small", "thin", "thin_small" }) do
     local host = newHost()
     local g = Glass.Apply(host, size)
     Glass.Bar(host, 20)
@@ -48,7 +48,7 @@ for name in pairs(named) do
     count = count + 1
     check(files[name .. ".tga"], "Media holds " .. name .. ".tga")
 end
-eq(count, 23, "the code names 23 textures (r1's 15 and the 8 disc textures)")
+eq(count, 27, "the code names 27 textures (r1's 15, r2's 8 disc textures, r3's 4 thin rims)")
 for file in pairs(files) do
     local name = file:match("^(.+)%.tga$")
     check(name and named[name], "Media\\" .. file .. " is a texture the code names")
