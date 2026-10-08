@@ -49,8 +49,8 @@ side by side.
   `STYLE`), `font` (a `FONTS` key).
 - Instance functions, dot-called (`Glass.Apply(...)`, not `Glass:Apply`): `Apply(host,
   "large"|"small"|"thin"|"thin_small") → g` (thin sizes r3), `Disc(host, "disc"|"disc_small")
-  → g` (r2; square host, `g.edge` nil), `Bar(parent, height)`, `Mask(host, file, margin, inset?, anchor?)` (`margin` nil = unsliced, r2),
-  `Font(parent, size, justify?)`, `Sheen(g, host, w, h)`, `SetBar(bar, max, value, snap?)`,
+  → g` (r2; square host, `g.edge` nil), `Bar(parent, height)`, `Mask(host, file, margin,
+  inset?, anchor?)` (`margin` nil = unsliced, r2), `Font(parent, size, justify?)`, `Sheen(g, host, w, h)`, `SetBar(bar, max, value, snap?)`,
   `Smooth()`, `Inset(size?)`, `ContentLevel(host)`, `SetFillAlpha`, `SetRimAlpha`,
   `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`,
   `SetFont(key)`, `SetSurfaceTint(g, r, g, b, a?)` and `SetSurfaceEnabled(g, enabled)` (r3,
