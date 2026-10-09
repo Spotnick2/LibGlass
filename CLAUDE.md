@@ -13,9 +13,10 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-08): `r4` released** (tag on `330ef47`: the disabled look's default 0.4 → 0.25,
-#24). `r3` is `87b3c04` (per-surface tint, disabled look and thin rims, for Time Is Money; checked
-in game 2026-10-07). `r2` is `ed57e53` (`Glass.Disc`, for PortalRoulette, which pins `tag: r2`);
+**Status (2026-10-09): `r5` merged, not yet tagged** (`efa8b40`: `Glass.Pill`, #31; the tag
+waits for its in-game check). `r4` is `330ef47` (the disabled look's default 0.4 → 0.25, #24).
+`r3` is `87b3c04` (per-surface tint, disabled look and thin rims, for Time Is Money; checked in
+game 2026-10-07). `r2` is `ed57e53` (`Glass.Disc`, for PortalRoulette, which pins `tag: r2`);
 `r1` is `562da7b`. GlassUnitFrames is the pilot consumer (Phase 2 done, pinned to `tag: r1`).
 Phase 3, the other Glass addons, is tracked in #3, with the per-addon guide at
 `C:\Projects\References\LIBGLASS-MIGRATION.md`. Phase 4 (#4) is the embedded-libraries guide.
@@ -95,6 +96,15 @@ These follow `C:\Projects\References\EMBEDDED-LIBRARIES.md` §5 (it replaced the
 
 - **Raise `MINOR` for every behaviour change**, in the same PR. Tag the merge commit `r<MINOR>`
   (`git tag r2 && git push origin r2`). Never move or reuse a tag.
+- **After pushing tag `rN`, in order** (`EMBEDDED-LIBRARIES.md` §9):
+  1. **A GitHub Release** (#30): `gh release create rN --verify-tag --title "rN: <what it adds>"
+     --notes-file <notes>`. `--verify-tag` aborts if the tag isn't on the remote; without it gh
+     creates the tag on `main`'s HEAD, which may not be the merge commit. The notes are written by
+     hand, not `--generate-notes` (PR titles don't say what a consumer must do): what changed (API
+     added, defaults changed, new `Media\` files), **what a consumer must do** (bump the pin, or
+     nothing; any `.pkgmeta` ignore change), and what the in-game check showed. (r4 was tagged
+     before its check, against the rule below; its release says so.)
+  2. **Freeze the fixture** (see Testing), in its own PR.
 - **Consumers pin a tag** in `.pkgmeta` (`tag: rN`), not `tag: latest` (the packager picks the
   newest tag by creation date and falls back to branch HEAD). A consumer bumps its pin **only when
   it releases anyway**. Players still get fixes early: the newest copy loaded wins.
@@ -105,7 +115,8 @@ These follow `C:\Projects\References\EMBEDDED-LIBRARIES.md` §5 (it replaced the
   Priestly's published zip, Priestly #53).
 - **Before tagging:** run the pilot consumer's tests against this checkout
   (`$env:LIBGLASS`, `pwsh ..\GlassUnitFrames\tests\run.ps1`), and validate in game.
-- No CHANGELOG for the library (LibGroupBuffs precedent); the consumers' changelogs carry
+- No CHANGELOG file for the library (LibGroupBuffs precedent): the **GitHub Releases are its
+  history**, and consumers read them before bumping a pin. The consumers' changelogs carry
   player-facing notes.
 
 ## Testing
