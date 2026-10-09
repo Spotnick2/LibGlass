@@ -438,7 +438,9 @@ for _, file in ipairs(RELEASES) do
         eq(pg.top:GetFrameLevel(), 4, r .. " upgraded: Pill on an " .. r .. " instance")
         A.SetRimAlpha(0.5)
         eq(pg.rim._alpha, 0.5, r .. " upgraded: and its rim follows that instance")
+        pb:SetFrameLevel(9)
         check(A.RelevelPill(pill), r .. " upgraded: RelevelPill too")
+        check(pill:GetFrameLevel() == 8 and pg.top:GetFrameLevel() == 8, r .. " upgraded: and it moves the pill and its rims")
 
         WoW.reset(); WoW.resetLibStub()
         local cur = loadLibrary("GlassChat")

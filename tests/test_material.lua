@@ -355,6 +355,19 @@ do
     check(not okDisc and tostring(errDisc):find("test_material%.lua:%d+: LibGlass.*rect size"),
           "a disc size is refused at the call site: " .. tostring(errDisc))
     check(not pcall(P.Pill, button(3), { size = "huge" }), "an unknown size is refused")
+    -- Bad arguments are refused at the call site, before anything is built.
+    local nRims = #P._rims
+    for _, case in ipairs({
+        { "a nil button", nil, nil, "button frame" },
+        { "a string for opts", button(3), "thin_small", "options table" },
+        { "highlight = true", button(3), { highlight = true }, "highlight" },
+        { "highlight out of range", button(3), { highlight = 2 }, "highlight" },
+    }) do
+        local ok, err = pcall(function() P.Pill(case[2], case[3]) end)
+        check(not ok and tostring(err):find("test_material%.lua:%d+: LibGlass.*" .. case[4]),
+              case[1] .. " is refused at the call site: " .. tostring(err))
+    end
+    eq(#P._rims, nRims, "and no surface was built for any refused call")
 
     -- The button's level moves: RelevelPill puts the pill and its rims back under it.
     b:SetFrameLevel(9)

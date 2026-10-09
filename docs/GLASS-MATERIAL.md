@@ -210,28 +210,6 @@ local c = RAID_CLASS_COLORS[class]           -- or C_ClassColor.GetClassColor(cl
 Glass.SetSurfaceTint(g, c.r, c.g, c.b, 0.3)  -- omit the alpha to keep the surface's own 0.24
 ```
 
-**Pills (r5).** `Glass.Pill(button, opts?) → pill, g` is the small glass button behind a symbol
-that GlassChat (the buttons beside the chat) and AltStable (the portrait toast's toggle, which sits
-among them) built by hand (#31). On top of `Apply`:
-
-- the material goes on **`pill`, a child frame one level under the button** (level 0 at least),
-  covering it, or with `opts.side` a square of that many px centred on it;
-- **`g.top` moves down to the pill's level.** `Apply` puts it at host + 10, so the rims would draw
-  over the button's own art: the symbol;
-- **no grain and no shadow** (alpha 0): at 24 px the grain reads as noise and the shadow spills
-  onto the next button;
-- **the button's highlight is softened, not removed** (`opts.highlight`, default 0.4; `false`
-  leaves it), so hovering still shows. Set any highlight texture before the call; Blizzard code
-  that re-sets the highlight's alpha later (GlassChat's `UpdateHighlight` hook) is the caller's.
-
-`opts.size` is any rect size (default `"small"`; `"thin_small"` works too); a disc size errors.
-A pill is an ordinary surface of its instance: `SetRimAlpha`, `SetSurfaceTint` and
-`SetSurfaceEnabled` reach it (disabled, its grain stays at 0). **When the button's level changes,
-call `Glass.RelevelPill(pill)`**: it puts the pill and its rims back one level under the button
-(it returns `false` for a frame `Pill` didn't build). The library installs no hook on the button.
-The symbol, its gold and its pressed offset stay with each consumer: which frameless atlases exist
-is a per-client measurement, and drawn symbols are each consumer's art.
-
 - **Keep the alpha low** (about 0.2–0.35). Saturated or warm tints read as smoked plastic (§1);
   near 1 the body becomes a solid coloured panel, not glass.
 - **Follow a unit** by calling it again when the unit changes; `Glass.SetSurfaceTint(g)` goes back
@@ -243,6 +221,35 @@ is a per-client measurement, and drawn symbols are each consumer's art.
 - **Bars are separate:** colour a glass bar with `bar:SetStatusBarColor(r, g, b)` (also plain
   only). A class-coloured unit frame would tint its glass faintly and colour its health bar at full
   strength. *Not yet tried in game.*
+
+**Pills (r5).** `Glass.Pill(button, opts?) → pill, g` is the small glass button behind a symbol
+that GlassChat (the buttons beside the chat) and AltStable (the portrait toast's toggle, which sits
+among them) built by hand (#31). On top of `Apply`:
+
+- the material goes on **`pill`, a child frame one level under the button**, covering it, or with
+  `opts.side` a square of that many px centred on it. A button at level 0 leaves the pill at 0 too,
+  level with the button, where the client doesn't guarantee the rims draw under the symbol: give
+  the button a level of 1 or more;
+- **`g.top` moves down to the pill's level.** `Apply` puts it at host + 10, so the rims would draw
+  over the button's own art: the symbol;
+- **no grain and no shadow** (alpha 0): at 24 px the grain reads as noise and the shadow spills
+  onto the next button;
+- **the button's highlight is softened, not removed** (`opts.highlight`, default 0.4; `false`
+  leaves it), so hovering still shows. Set any highlight texture before the call; Blizzard code
+  that re-sets the highlight's alpha later (GlassChat's `UpdateHighlight` hook) is the caller's.
+
+`opts.size` is any rect size (default `"small"`; `"thin_small"` works too). `Pill` checks its
+arguments before building anything and errors at the caller's line: a button that isn't a frame,
+`opts` that isn't a table (`Glass.Pill(b, "thin_small")` is a mistake: `{ size = "thin_small" }`),
+a disc or unknown size, a `highlight` that is neither an alpha in 0..1 nor `false`.
+A pill is an ordinary surface of its instance: `SetRimAlpha`, `SetSurfaceTint` and
+`SetSurfaceEnabled` reach it (disabled, its grain stays at 0). **When the button's level changes,
+call `Glass.RelevelPill(pill)`**: it puts the pill and its rims back one level under the button
+(it returns `false` for a frame `Pill` didn't build). The library installs no hook on the button.
+`RelevelPill` acts on the pill it is given, as the per-surface setters act on the `g` they are
+given.
+The symbol, its gold and its pressed offset stay with each consumer: which frameless atlases exist
+is a per-client measurement, and drawn symbols are each consumer's art.
 
 A glass bar (`Glass.Bar`), bottom to top:
 
@@ -261,7 +268,7 @@ A glass bar (`Glass.Bar`), bottom to top:
 one definition. Each instance has its own list, its setters bound to it.
 
 Every setter (`SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`,
-`SetFont`, and the per-surface `SetSurfaceTint`, `SetSurfaceEnabled`, `RelevelPill`) touches only the surfaces built through **its own instance**, and the bar hooks paint
+`SetFont`, and the per-surface `SetSurfaceTint`, `SetSurfaceEnabled`) touches only the surfaces built through **its own instance**, and the bar hooks paint
 with the bar's own instance's `STYLE`.
 
 A `SetStatusBarColor` hook re-tints the fill and the track only when the colour actually changes

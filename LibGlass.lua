@@ -417,6 +417,8 @@ end
 -- opts: size (a rect size, default "small"), side (px: a square centred on
 -- the button; nil covers the button), highlight (its alpha, default 0.4;
 -- false leaves it alone). Returns pill, g. The symbol stays the caller's.
+-- Everything is checked before anything is built, so a bad call leaves no
+-- half-built surface registered with the instance.
 -- When the button's level changes, call RelevelPill(pill).
 local PILL_HIGHLIGHT = 0.4
 
@@ -427,11 +429,21 @@ local function levelPill(pill, top)
 end
 
 function lib.impl.Pill(inst, button, opts)
+    if type(button) ~= "table" or type(button.GetFrameLevel) ~= "function" then
+        error(MAJOR .. ": Pill takes a button frame, got " .. tostring(button), 3)
+    end
+    if opts ~= nil and type(opts) ~= "table" then
+        error(MAJOR .. ": Pill takes an options table ({ size = ... }), got " .. tostring(opts), 3)
+    end
     opts = opts or {}
     local size = opts.size or "small"
     local S = lib.SIZES[size]
     if not S or S.shape == "disc" then
         error(MAJOR .. ": Pill takes a rect size (\"small\", \"thin_small\", ...), got " .. tostring(size), 3)
+    end
+    local hl = opts.highlight
+    if hl ~= nil and hl ~= false and not inRange(hl, 0, 1) then
+        error(MAJOR .. ": Pill's highlight is an alpha in 0..1 or false, got " .. tostring(hl), 3)
     end
     local pill = CreateFrame("Frame", nil, button)
     if opts.side then
@@ -445,9 +457,9 @@ function lib.impl.Pill(inst, button, opts)
     levelPill(pill, g.top)
     g.grain:SetAlpha(0)
     g.shadow:SetAlpha(0)
-    if opts.highlight ~= false then
+    if hl ~= false then
         local h = button.GetHighlightTexture and button:GetHighlightTexture()
-        if h then h:SetAlpha(opts.highlight or PILL_HIGHLIGHT) end
+        if h then h:SetAlpha(hl or PILL_HIGHLIGHT) end
     end
     return pill, g
 end
