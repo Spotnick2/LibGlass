@@ -13,8 +13,8 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-09): `r5` merged, not yet tagged** (`efa8b40`: `Glass.Pill`, #31; the tag
-waits for its in-game check). `r4` is `330ef47` (the disabled look's default 0.4 → 0.25, #24).
+**Status (2026-10-09): `r5` released** (tag on `efa8b40`: `Glass.Pill`, #31; every tag from r1
+has a GitHub Release, #30). `r4` is `330ef47` (the disabled look's default 0.4 → 0.25, #24).
 `r3` is `87b3c04` (per-surface tint, disabled look and thin rims, for Time Is Money; checked in
 game 2026-10-07). `r2` is `ed57e53` (`Glass.Disc`, for PortalRoulette, which pins `tag: r2`);
 `r1` is `562da7b`. GlassUnitFrames is the pilot consumer (Phase 2 done, pinned to `tag: r1`).
