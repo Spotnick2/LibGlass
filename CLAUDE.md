@@ -95,6 +95,13 @@ These follow `C:\Projects\References\EMBEDDED-LIBRARIES.md` §5 (it replaced the
 
 - **Raise `MINOR` for every behaviour change**, in the same PR. Tag the merge commit `r<MINOR>`
   (`git tag r2 && git push origin r2`). Never move or reuse a tag.
+- **Every tag gets a GitHub Release** (#30), published right after the tag is pushed:
+  `gh release create rN --title "rN: <what it adds>" --notes-file <notes>`. The notes are
+  written by hand, not `--generate-notes` (PR titles don't say what a consumer must do), and
+  cover: what changed (API added, defaults changed, new `Media\` files), **what a consumer must
+  do** (bump the pin, or nothing; any `.pkgmeta` ignore change), and whether it was **checked
+  in game** (say so when it wasn't yet). They are the library's release history; consumers read
+  them before bumping a pin.
 - **Consumers pin a tag** in `.pkgmeta` (`tag: rN`), not `tag: latest` (the packager picks the
   newest tag by creation date and falls back to branch HEAD). A consumer bumps its pin **only when
   it releases anyway**. Players still get fixes early: the newest copy loaded wins.
