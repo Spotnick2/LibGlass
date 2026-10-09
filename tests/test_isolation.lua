@@ -74,6 +74,14 @@ eq(a.g.rim._alpha, 0.3, "A's rect rim with it")
 eq(b.g.rim._alpha, 0.8, "B's rect rim with B")
 A.SetRimAlpha(0.9); B.SetRimAlpha(1)
 
+-- A pill's rim follows only its own instance's SetRimAlpha.
+local _, pA = A.Pill(CreateFrame("Button", nil, UIParent))
+local _, pB = B.Pill(CreateFrame("Button", nil, UIParent))
+A.SetRimAlpha(0.4)
+eq(pA.rim._alpha, 0.4, "A's pill retuned")
+eq(pB.rim._alpha, 1, "B's pill untouched")
+A.SetRimAlpha(0.9)
+
 -- A bar's hook paints with its own instance's STYLE.
 b.bar:SetStatusBarColor(0, 0, 1)
 eq(b.bar:GetStatusBarTexture()._alpha, 0.6, "B's recolour keeps B's fill opacity, not A's")

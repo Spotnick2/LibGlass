@@ -96,6 +96,12 @@ for _, case in ipairs({ { "Disc", newHost(100, 60), "disc" }, { "Disc", newHost(
     local ok, err = pcall(function() Glass[case[1]](case[2], case[3]) end)
     check(not ok and tostring(err):find("test_methods%.lua:%d+: LibGlass"), case[1] .. "(" .. case[3] .. ") errors at the call site: " .. tostring(err))
 end
+-- Pills (r5): the button's highlight, the pill and its rims' levels.
+local pb = CreateFrame("Button", nil, UIParent)
+pb:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+local pill = Glass.Pill(pb, { side = 20 })
+pb:SetFrameLevel(6)
+Glass.RelevelPill(pill)
 local um = Glass.Mask(newHost(), "disc_mask", nil)
 eq(um._slice, nil, "Mask with a nil margin is unsliced")
 

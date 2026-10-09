@@ -210,6 +210,28 @@ local c = RAID_CLASS_COLORS[class]           -- or C_ClassColor.GetClassColor(cl
 Glass.SetSurfaceTint(g, c.r, c.g, c.b, 0.3)  -- omit the alpha to keep the surface's own 0.24
 ```
 
+**Pills (r5).** `Glass.Pill(button, opts?) → pill, g` is the small glass button behind a symbol
+that GlassChat (the buttons beside the chat) and AltStable (the portrait toast's toggle, which sits
+among them) built by hand (#31). On top of `Apply`:
+
+- the material goes on **`pill`, a child frame one level under the button** (level 0 at least),
+  covering it, or with `opts.side` a square of that many px centred on it;
+- **`g.top` moves down to the pill's level.** `Apply` puts it at host + 10, so the rims would draw
+  over the button's own art: the symbol;
+- **no grain and no shadow** (alpha 0): at 24 px the grain reads as noise and the shadow spills
+  onto the next button;
+- **the button's highlight is softened, not removed** (`opts.highlight`, default 0.4; `false`
+  leaves it), so hovering still shows. Set any highlight texture before the call; Blizzard code
+  that re-sets the highlight's alpha later (GlassChat's `UpdateHighlight` hook) is the caller's.
+
+`opts.size` is any rect size (default `"small"`; `"thin_small"` works too); a disc size errors.
+A pill is an ordinary surface of its instance: `SetRimAlpha`, `SetSurfaceTint` and
+`SetSurfaceEnabled` reach it (disabled, its grain stays at 0). **When the button's level changes,
+call `Glass.RelevelPill(pill)`**: it puts the pill and its rims back one level under the button
+(it returns `false` for a frame `Pill` didn't build). The library installs no hook on the button.
+The symbol, its gold and its pressed offset stay with each consumer: which frameless atlases exist
+is a per-client measurement, and drawn symbols are each consumer's art.
+
 - **Keep the alpha low** (about 0.2–0.35). Saturated or warm tints read as smoked plastic (§1);
   near 1 the body becomes a solid coloured panel, not glass.
 - **Follow a unit** by calling it again when the unit changes; `Glass.SetSurfaceTint(g)` goes back
@@ -239,7 +261,7 @@ A glass bar (`Glass.Bar`), bottom to top:
 one definition. Each instance has its own list, its setters bound to it.
 
 Every setter (`SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`,
-`SetFont`, and the per-surface `SetSurfaceTint`, `SetSurfaceEnabled`) touches only the surfaces built through **its own instance**, and the bar hooks paint
+`SetFont`, and the per-surface `SetSurfaceTint`, `SetSurfaceEnabled`, `RelevelPill`) touches only the surfaces built through **its own instance**, and the bar hooks paint
 with the bar's own instance's `STYLE`.
 
 A `SetStatusBarColor` hook re-tints the fill and the track only when the colour actually changes
@@ -315,6 +337,8 @@ local d   = Glass.Disc(square, "disc")           -- r2: a round surface on a squ
 local b   = Glass.Apply(button, "thin_small")    -- r3: the thin rim, opt-in ("thin" for large)
 Glass.SetSurfaceTint(b, 0.18, 0.42, 0.22, 0.35)  -- r3: this surface's own tint; (b) = back to STYLE
 Glass.SetSurfaceEnabled(b, button:IsEnabled())   -- r3: dimmed while disabled
+local pill, p = Glass.Pill(button)               -- r5: a small glass button behind its symbol
+Glass.RelevelPill(pill)                          -- r5: after the button's level changed
 Glass.SetFont("friz")                            -- restyles this instance's Glass.Font strings
 Glass.SetRimAlpha(0.5)                           -- this instance's surfaces only
 ```
@@ -335,7 +359,8 @@ Glass.SetRimAlpha(0.5)                           -- this instance's surfaces onl
   repaints later is only what a setter owns (every rim's alpha after `SetRimAlpha`; `g.tint`'s
   colour after `SetSurfaceTint`; the alpha of the tint, grain, wash, rims and edge while
   `SetSurfaceEnabled` has them dimmed) and a bar's fill and track when its colour changes; an upgrade repaints
-  nothing. Prefer the per-surface setters to retinting `g.tint` by hand.
+  nothing. Prefer the per-surface setters to retinting `g.tint` by hand. A pill (r5) is a plain
+  frame you may anchor, show or hide; `RelevelPill` owns its level and its `g.top`'s.
 
 **Upgrades.** Within `LibGlass-1.0` the API only grows: nothing above is removed, renamed or
 changes meaning (a breaking change is `LibGlass-2.0`, side by side). When a newer copy loads after
@@ -394,3 +419,4 @@ library.
 | LibGlass-1.0 r2 | `Glass.Disc`: the material on a circle (8 new textures, all unsliced), for PortalRoulette's arcane wheel | Rects unchanged (the parity test still passes, and the 15 r1 textures regenerate byte-identical). **Approved in game** (2026-10-05): discs at 320, 64 and 40 px over bright sky, clouds and dark scenery; top light reads, glints as subtle as `rim5`'s, small discs clean, no shadow halo on dark. `disc_small`'s inset is 4, past its inner catch-light (3.8 texture px). |
 | LibGlass-1.0 r3 | Per-surface options (#18): `SetSurfaceTint`, `SetSurfaceEnabled` (`STYLE.disabledAlpha` 0.4, scaling each region's own alpha), and the opt-in `"thin"`/`"thin_small"` sizes (4 new textures, depth 0.55, light 0.65) | Asked for by Time Is Money after an outside UX critique: near-opaque dialogs, one accent button, a disabled look, a less moulded rim on a window full of small buttons. No default changes (parity passes; the 23 earlier textures regenerate byte-identical). **Checked in game** (2026-10-07, Time Is Money's ledger, Help and Settings): the accent tint reads as a restrained green while the other buttons stay neutral; the near-opaque dialogs keep their rim and stop the main window's labels and model from showing through; the thin rims give the many small buttons a fine edge instead of a moulded bevel. The disabled look at 0.4 is **subtle** at button size (the grey label carries most of it) and not settled: a consumer can lower `STYLE.disabledAlpha` in its own `New({ style = ... })` without a library release. (#24). |
 | LibGlass-1.0 r4 | `STYLE.disabledAlpha` 0.4 → 0.25 (#24) | r3's disabled look was subtle at button size in Time Is Money: the grey label carried most of the signal. A default change, so it reaches instances made by r4 or later, and r1/r2 instances an r4 copy fills first; an instance that already has the key (made by r3, or filled by an r3 copy) keeps 0.4, so with r3 and r4 copies installed the result can depend on load order (the stated limitation of narrow migration). **Not yet checked in game.** |
+| LibGlass-1.0 r5 | `Glass.Pill(button, opts?)` and `Glass.RelevelPill(pill)` (#31): the small glass button behind a symbol, from GlassChat's `Buttons.Style` and AltStable's portrait toggle | No look change for anything built before: a new builder on top of `Apply` (parity passes, no new texture). Same result as the consumers' hand recipe (`tests/test_material.lua` compares them). **Not yet checked in game.** |

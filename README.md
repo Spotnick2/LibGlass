@@ -50,6 +50,7 @@ local d   = Glass.Disc(square, "disc")               -- r2: round glass on a squ
 local b   = Glass.Apply(button, "thin_small")        -- r3: the thin rim, opt-in
 Glass.SetSurfaceTint(b, 0.18, 0.42, 0.22, 0.35)      -- r3: one surface's own tint
 Glass.SetSurfaceEnabled(b, false)                    -- r3: its disabled look
+local pill, p = Glass.Pill(button)                   -- r5: a small glass button behind its symbol
 ```
 
 ## API
@@ -69,6 +70,7 @@ Glass.SetSurfaceEnabled(b, false)                    -- r3: its disabled look
 | `Inset(size?)`, `ContentLevel(host)` | r1 | content inset (px) and frame level; for `disc`/`disc_small` the inset is in texture px (256 / 64): scale it by host size ÷ texture size |
 | `SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`, `SetFont(key)` | r1 | live setters, this instance's surfaces only (`SetRimAlpha` reaches discs) |
 | `SetSurfaceTint(g, r, g, b, a)`, `SetSurfaceEnabled(g, enabled)` | r3 | one surface: its own tint (`a` optional; `(g)` = back to its built colour), its disabled look (its regions' alphas scaled by `STYLE.disabledAlpha`, given back on enable) |
+| `Pill(button, opts?) → pill, g`, `RelevelPill(pill)` | r5 | the small glass button behind a symbol: the material on a child frame one level under the button, its rims down with it (under the symbol), no grain or shadow, the button's highlight softened to 0.4 (`opts`: `size` a rect size, default `"small"`; `side` px, a centred square; `highlight` alpha or `false`); `RelevelPill` after the button's level changes |
 
 Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`large`, `small`,
 from r2 `disc`, `disc_small`, from r3 `thin`, `thin_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
