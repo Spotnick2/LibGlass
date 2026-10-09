@@ -10,6 +10,7 @@
 --   local d = Glass.Disc(square, "disc")               -- r2: the round variant
 --   Glass.SetSurfaceTint(g, r, g, b, a)                -- r3: one surface's own tint
 --   Glass.SetSurfaceEnabled(g, false)                  -- r3: its disabled look
+--   local pill, g = Glass.Pill(button)                 -- r5: a small glass button behind a symbol
 --
 -- Layer stack on a host frame, bottom to top:
 --   shadow -> tint -> grain -> wash      (on the host, masked to a rounded rect)
@@ -30,7 +31,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 4
+local MAJOR, MINOR = "LibGlass-1.0", 5
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -177,7 +178,7 @@ do
     for _, name in ipairs(lib.FUNCTIONS) do have[name] = true end
     for _, name in ipairs({ "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
                             "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
-                            "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled" }) do
+                            "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled", "Pill", "RelevelPill" }) do
         if not have[name] then
             table.insert(lib.FUNCTIONS, name)
             have[name] = true
@@ -403,6 +404,73 @@ function lib.impl.Disc(inst, host, size)
     buildBody(inst, host, g, S)
 
     return g
+end
+
+-- The small glass button behind a symbol (r5): GlassChat's buttons beside
+-- the chat and AltStable's portrait toggle, which sits among them. The
+-- material goes on a child frame (the pill) one level under `button`, with
+-- g.top moved down to the pill's level: Apply puts the rims at host + 10,
+-- where they would draw over the button's own art (its symbol). No grain
+-- (noise at 24 px) and no shadow (it spills onto the next button), both at
+-- alpha 0. The button's highlight is softened, not removed, so hovering
+-- still shows: set any highlight texture before the call.
+-- opts: size (a rect size, default "small"), side (px: a square centred on
+-- the button; nil covers the button), highlight (its alpha, default 0.4;
+-- false leaves it alone). Returns pill, g. The symbol stays the caller's.
+-- Everything is checked before anything is built, so a bad call leaves no
+-- half-built surface registered with the instance.
+-- When the button's level changes, call RelevelPill(pill).
+local PILL_HIGHLIGHT = 0.4
+
+local function levelPill(pill, top)
+    local level = math.max(0, pill:GetParent():GetFrameLevel() - 1)
+    pill:SetFrameLevel(level)
+    top:SetFrameLevel(level)
+end
+
+function lib.impl.Pill(inst, button, opts)
+    if type(button) ~= "table" or type(button.GetFrameLevel) ~= "function" then
+        error(MAJOR .. ": Pill takes a button frame, got " .. tostring(button), 3)
+    end
+    if opts ~= nil and type(opts) ~= "table" then
+        error(MAJOR .. ": Pill takes an options table ({ size = ... }), got " .. tostring(opts), 3)
+    end
+    opts = opts or {}
+    local size = opts.size or "small"
+    local S = lib.SIZES[size]
+    if not S or S.shape == "disc" then
+        error(MAJOR .. ": Pill takes a rect size (\"small\", \"thin_small\", ...), got " .. tostring(size), 3)
+    end
+    local hl = opts.highlight
+    if hl ~= nil and hl ~= false and not inRange(hl, 0, 1) then
+        error(MAJOR .. ": Pill's highlight is an alpha in 0..1 or false, got " .. tostring(hl), 3)
+    end
+    local pill = CreateFrame("Frame", nil, button)
+    if opts.side then
+        pill:SetSize(opts.side, opts.side)
+        pill:SetPoint("CENTER", button, "CENTER", 0, 0)
+    else
+        pill:SetAllPoints(button)
+    end
+    local g = inst.Apply(pill, size)
+    pill.glassPill = g   -- what RelevelPill needs, on the frame
+    levelPill(pill, g.top)
+    g.grain:SetAlpha(0)
+    g.shadow:SetAlpha(0)
+    if hl ~= false then
+        local h = button.GetHighlightTexture and button:GetHighlightTexture()
+        if h then h:SetAlpha(hl or PILL_HIGHLIGHT) end
+    end
+    return pill, g
+end
+
+-- Put a pill (and its rims) back one level under its button, after the
+-- button's level changed. False for a frame Pill didn't build.
+function lib.impl.RelevelPill(inst, pill)
+    local g = type(pill) == "table" and pill.glassPill
+    if not g then return false end
+    levelPill(pill, g.top)
+    return true
 end
 
 -- A content frame level for things drawn between the body and the rim.

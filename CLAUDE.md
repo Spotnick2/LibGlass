@@ -56,7 +56,9 @@ side by side.
   `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`,
   `SetFont(key)`, `SetSurfaceTint(g, r, g, b, a?)` and `SetSurfaceEnabled(g, enabled)` (r3,
   per surface; disabling scales each region's own alpha and enabling gives it back, via
-  `glassBase`/`glassDim` on the region; `SetRimAlpha` keeps a disabled rim dimmed).
+  `glassBase`/`glassDim` on the region; `SetRimAlpha` keeps a disabled rim dimmed),
+  `Pill(button, opts?) → pill, g` and `RelevelPill(pill)` (r5: the small glass button behind a
+  symbol; `opts.size`/`side`/`highlight`; the surface is kept on the pill as `pill.glassPill`).
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
   `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 - **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,

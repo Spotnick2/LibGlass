@@ -296,6 +296,97 @@ do
 end
 
 ------------------------------------------------------------------------------
+-- Pill (r5, #31): the small glass button behind a symbol, as GlassChat's
+-- Buttons.Style and AltStable's portrait toggle build it by hand.
+------------------------------------------------------------------------------
+do
+    local P = LibGlass:New()
+    local function button(level)
+        local b = CreateFrame("Button", nil, UIParent)
+        b:SetSize(24, 24)
+        b:SetFrameLevel(level)
+        b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+        return b
+    end
+
+    -- AltStable's recipe (AutoCapture.lua), by hand, against Pill's result.
+    local hb = button(5)
+    local hp = CreateFrame("Frame", nil, hb)
+    hp:SetAllPoints()
+    hp:SetFrameLevel(math.max(0, hb:GetFrameLevel() - 1))
+    local hg = P.Apply(hp, "small")
+    hg.grain:SetAlpha(0)
+    hg.shadow:SetAlpha(0)
+    hg.top:SetFrameLevel(hp:GetFrameLevel())
+    hb:GetHighlightTexture():SetAlpha(0.4)
+
+    local b = button(5)
+    local pill, g = P.Pill(b)
+    eq(pill:GetParent(), b, "the pill is the button's child")
+    eq(pill:GetFrameLevel(), 4, "one level under the button")
+    eq(g.top:GetFrameLevel(), 4, "its rims down with it, under the symbol")
+    eq(pill._points[1][1], "ALL", "covering the button")
+    eq(pill._points[1][2], b, "(the button itself)")
+    eq(g.size, "small", "the small set by default")
+    for _, f in ipairs({ "shadow", "tint", "grain", "wash", "dark", "rim" }) do
+        eq(g[f]._alpha, hg[f]._alpha, "g." .. f .. " alpha as the hand recipe")
+        eq(g[f]._file, hg[f]._file, "g." .. f .. " texture as the hand recipe")
+    end
+    eq(g.grain._alpha, 0, "no grain")
+    eq(g.shadow._alpha, 0, "no shadow")
+    eq(b:GetHighlightTexture()._alpha, 0.4, "the highlight softened, as GlassChat's")
+    check(b:GetHighlightTexture()._shown, "not removed")
+
+    -- Options: a centred square, another rect size, the highlight's alpha or none.
+    local b2 = button(3)
+    local p2, g2 = P.Pill(b2, { side = 20, size = "thin_small", highlight = 0.6 })
+    eq(p2._width, 20, "side: a square of that side")
+    check(p2._points[1][1] == "CENTER" and p2._points[1][2] == b2, "centred on the button")
+    eq(g2.rim._file, P.MEDIA .. "rim_thin_small", "size: any rect set")
+    eq(b2:GetHighlightTexture()._alpha, 0.6, "highlight: its alpha")
+    local b3 = button(3)
+    P.Pill(b3, { highlight = false })
+    eq(b3:GetHighlightTexture()._alpha, nil, "highlight = false leaves it alone")
+    local bare = CreateFrame("Button", nil, UIParent)
+    check(pcall(P.Pill, bare), "a button with no highlight texture")
+    local p0 = P.Pill(button(0))
+    eq(p0:GetFrameLevel(), 0, "a button at level 0: the pill clamps at 0")
+    local okDisc, errDisc = pcall(function() P.Pill(button(3), { size = "disc_small" }) end)
+    check(not okDisc and tostring(errDisc):find("test_material%.lua:%d+: LibGlass.*rect size"),
+          "a disc size is refused at the call site: " .. tostring(errDisc))
+    check(not pcall(P.Pill, button(3), { size = "huge" }), "an unknown size is refused")
+    -- Bad arguments are refused at the call site, before anything is built.
+    local nRims = #P._rims
+    for _, case in ipairs({
+        { "a nil button", nil, nil, "button frame" },
+        { "a string for opts", button(3), "thin_small", "options table" },
+        { "highlight = true", button(3), { highlight = true }, "highlight" },
+        { "highlight out of range", button(3), { highlight = 2 }, "highlight" },
+    }) do
+        local ok, err = pcall(function() P.Pill(case[2], case[3]) end)
+        check(not ok and tostring(err):find("test_material%.lua:%d+: LibGlass.*" .. case[4]),
+              case[1] .. " is refused at the call site: " .. tostring(err))
+    end
+    eq(#P._rims, nRims, "and no surface was built for any refused call")
+
+    -- The button's level moves: RelevelPill puts the pill and its rims back under it.
+    b:SetFrameLevel(9)
+    check(P.RelevelPill(pill), "RelevelPill returns true")
+    eq(pill:GetFrameLevel(), 8, "the pill one level under again")
+    eq(g.top:GetFrameLevel(), 8, "and its rims")
+    check(P.RelevelPill(newHost()) == false and P.RelevelPill(nil) == false, "a frame Pill didn't build is refused")
+
+    -- A pill is an ordinary surface of its instance.
+    P.SetRimAlpha(0.5)
+    eq(g.rim._alpha, 0.5, "SetRimAlpha reaches a pill")
+    P.SetSurfaceEnabled(g, false)
+    eq(g.grain._alpha, 0, "disabled: the grain stays off")
+    P.SetSurfaceEnabled(g, true)
+    eq(g.grain._alpha, 0, "and enabled again")
+    eq(g.rim._alpha, 0.5, "the rim given back")
+end
+
+------------------------------------------------------------------------------
 -- New: a colon call and a known font, or a loud error.
 ------------------------------------------------------------------------------
 local okDot, errDot = pcall(LibGlass.New, { style = { rimAlpha = 1 } })

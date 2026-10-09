@@ -154,6 +154,13 @@ end
 function Methods.GetStatusBarTexture(b) return b._fill end
 function Methods.SetStatusBarColor(b, r, g, bl, a) b._color = { r, g, bl, a } end
 
+-- Button: its highlight texture (Glass.Pill softens it).
+function Methods.SetHighlightTexture(b, file, blend)
+    b._highlight = b._highlight or newWidget("Texture", b)
+    b._highlight._file, b._highlight._blend = file, blend
+end
+function Methods.GetHighlightTexture(b) return b._highlight end
+
 --------------------------------------------------------------------------------
 -- Globals
 --------------------------------------------------------------------------------
