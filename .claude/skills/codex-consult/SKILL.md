@@ -86,13 +86,13 @@ For LibGlass, good things to hand Codex:
 - packaging: `.pkgmeta`, what a consumer's zip ends up holding under `Libs/LibGlass-1.0/`.
 
 **Always hand it `CLAUDE.md` alongside the diff or plan**, plus
-`C:/Projects/References/PORTING-TBC-TO-FOREVER.md` and any `docs/` probe results. Those findings
+`C:/Projects/WoW/References/PORTING-TBC-TO-FOREVER.md` and any `docs/` probe results. Those findings
 were measured on the live client. Without them, a cold reviewer argues from Classic-era or Retail
 behaviour that doesn't hold here: that auras throw for the whole group in combat, that secure
 snippets and state drivers are broken, that some unit numbers are secret.
-`C:/Projects/References/forever-api-1.60.1.70205.md` is the full API surface when a question
-turns on whether something exists. The precedent embedded library is `C:/Projects/LibGroupBuffs`
-(consumed by `C:/Projects/Priestly`), and the pilot consumer is `C:/Projects/GlassUnitFrames`.
+`C:/Projects/WoW/References/forever-api-1.60.1.70205.md` is the full API surface when a question
+turns on whether something exists. The precedent embedded library is `C:/Projects/WoW/LibGroupBuffs`
+(consumed by `C:/Projects/WoW/Priestly`), and the pilot consumer is `C:/Projects/WoW/GlassUnitFrames`.
 
 Say what you have already established and ask it not to repeat that work. A clean "no defect found"
 is a useful answer - ask for it explicitly, or you invite an invented finding.

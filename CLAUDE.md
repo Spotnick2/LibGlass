@@ -19,7 +19,7 @@ has a GitHub Release, #30). `r4` is `330ef47` (the disabled look's default 0.4 �
 game 2026-10-07). `r2` is `ed57e53` (`Glass.Disc`, for PortalRoulette, which pins `tag: r2`);
 `r1` is `562da7b`. GlassUnitFrames is the pilot consumer (Phase 2 done, pinned to `tag: r1`).
 Phase 3, the other Glass addons, is tracked in #3, with the per-addon guide at
-`C:\Projects\References\LIBGLASS-MIGRATION.md`. Phase 4 (#4) is the embedded-libraries guide.
+`C:\Projects\WoW\References\LIBGLASS-MIGRATION.md`. Phase 4 (#4) is the embedded-libraries guide.
 `docs/PLAN.md` is the approved plan (adversarially reviewed by Codex, findings reconciled in it).
 
 Work goes through GitHub issues and PRs at `github.com/Spotnick2/LibGlass` (**public**: the
@@ -71,7 +71,7 @@ side by side.
 
 ## Upgrade rules (several addons ship copies; the newest one wins, and it may not be yours)
 
-These follow `C:\Projects\References\EMBEDDED-LIBRARIES.md` §5 (it replaced the porting guide's
+These follow `C:\Projects\WoW\References\EMBEDDED-LIBRARIES.md` §5 (it replaced the porting guide's
 "Sharing one library across your addons" section). Treat it as fact.
 
 - **Dispatch at call time.** Instance functions, `TUNABLES[i].set` and **every hook installed on a
@@ -155,16 +155,16 @@ Use the Lua 5.1 toolchain at `C:\Program Files (x86)\Lua\5.1\`, not a newer Lua 
 
 ## References
 
-- `C:\Projects\References\EMBEDDED-LIBRARIES.md`: the embedded-library guide (Phase 4), written
+- `C:\Projects\WoW\References\EMBEDDED-LIBRARIES.md`: the embedded-library guide (Phase 4), written
   from what this library and LibGroupBuffs measured. Packaging, pinning, upgrade rules and tests
   that apply beyond LibGlass go there.
-- `C:\Projects\References\PORTING-TBC-TO-FOREVER.md`: measured client facts. Other sessions edit
+- `C:\Projects\WoW\References\PORTING-TBC-TO-FOREVER.md`: measured client facts. Other sessions edit
   both files, so re-read before editing, and keep your edits to the section you mean to change.
-- `C:\Projects\References\forever-api-1.60.1.70205.md`: the API dump (widget methods included).
+- `C:\Projects\WoW\References\forever-api-1.60.1.70205.md`: the API dump (widget methods included).
   Presence is not a contract.
-- `C:\Projects\LibGroupBuffs`: the precedent embedded library (multi-file MINOR guards, fixtures,
+- `C:\Projects\WoW\LibGroupBuffs`: the precedent embedded library (multi-file MINOR guards, fixtures,
   `test_versions.lua`). Consumed by Priestly, Magely, Wildly.
-- `C:\Projects\GlassUnitFrames`: the original `Glass.lua` (v3, with the directional edge) and the
+- `C:\Projects\WoW\GlassUnitFrames`: the original `Glass.lua` (v3, with the directional edge) and the
   pilot consumer.
 
 Forever facts that matter here: textures are uncompressed 32-bit TGA, power-of-two; a **new
