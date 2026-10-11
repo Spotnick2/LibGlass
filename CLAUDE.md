@@ -160,7 +160,7 @@ Use the Lua 5.1 toolchain at `C:\Program Files (x86)\Lua\5.1\`, not a newer Lua 
   that apply beyond LibGlass go there.
 - `C:\Projects\WoW\References\PORTING-TBC-TO-FOREVER.md`: measured client facts. Other sessions edit
   both files, so re-read before editing, and keep your edits to the section you mean to change.
-- `C:\Projects\WoW\References\forever-api-1.60.1.70205.md`: the API dump (widget methods included).
+- `C:\Projects\WoW\References\forever-api-1.60.1.70338.md`: the API dump (widget methods included).
   Presence is not a contract.
 - `C:\Projects\WoW\LibGroupBuffs`: the precedent embedded library (multi-file MINOR guards, fixtures,
   `test_versions.lua`). Consumed by Priestly, Magely, Wildly.
