@@ -6,8 +6,8 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** r5 released. Revision 6 adds the opt-in clean preset; checked in game
-> for clear and smoked surfaces, but still unreleased. Existing defaults are unchanged.
+> **Status:** r6 released: the opt-in clean preset and independent body opacity. Existing
+> defaults are unchanged.
 
 ## Embedding
 
