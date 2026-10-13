@@ -144,7 +144,7 @@ small).
 
 ## 4. The layer stack (`LibGlass.lua`)
 
-### Opt-in clean material (revision 6, unreleased)
+### Opt-in clean material (r6)
 
 `LibStub("LibGlass-1.0"):New({ preset = "clean", bodyAlpha = 0.24 })` selects
 the treatment explored in Tools/GlassComparison. The preset overrides only:
@@ -191,7 +191,7 @@ match the preceding manual recipe. A second screenshot shows smoked bodies
 with the same rim and bar definition; its exact opacity is not printed in the
 capture. These captures validate the rectangular panel, unit-frame and small
 control samples. Client build, motion readability, clean discs and clean Pill
-were not established by this check. Revision 6 remains unreleased.
+were not established by this check; they are left to the consumers' beta. Released as r6.
 The existing probe now uses this API, with track overrides for A/B and neutral C.
 All 27 existing textures and original default rendering remain unchanged.
 
@@ -480,3 +480,4 @@ library.
 | LibGlass-1.0 r3 | Per-surface options (#18): `SetSurfaceTint`, `SetSurfaceEnabled` (`STYLE.disabledAlpha` 0.4, scaling each region's own alpha), and the opt-in `"thin"`/`"thin_small"` sizes (4 new textures, depth 0.55, light 0.65) | Asked for by Time Is Money after an outside UX critique: near-opaque dialogs, one accent button, a disabled look, a less moulded rim on a window full of small buttons. No default changes (parity passes; the 23 earlier textures regenerate byte-identical). **Checked in game** (2026-10-07, Time Is Money's ledger, Help and Settings): the accent tint reads as a restrained green while the other buttons stay neutral; the near-opaque dialogs keep their rim and stop the main window's labels and model from showing through; the thin rims give the many small buttons a fine edge instead of a moulded bevel. The disabled look at 0.4 is **subtle** at button size (the grey label carries most of it) and not settled: a consumer can lower `STYLE.disabledAlpha` in its own `New({ style = ... })` without a library release. (#24). |
 | LibGlass-1.0 r4 | `STYLE.disabledAlpha` 0.4 → 0.25 (#24) | r3's disabled look was subtle at button size in Time Is Money: the grey label carried most of the signal. A default change, so it reaches instances made by r4 or later, and r1/r2 instances an r4 copy fills first; an instance that already has the key (made by r3, or filled by an r3 copy) keeps 0.4, so with r3 and r4 copies installed the result can depend on load order (the stated limitation of narrow migration). **Not yet checked in game.** |
 | LibGlass-1.0 r5 | `Glass.Pill(button, opts?)` and `Glass.RelevelPill(pill)` (#31): the small glass button behind a symbol, from GlassChat's `Buttons.Style` and AltStable's portrait toggle | No look change for anything built before: a new builder on top of `Apply` (parity passes, no new texture). Same result as the consumers' hand recipe (`tests/test_material.lua` compares them). **Checked in game** (2026-10-09): AltStable's portrait toggle, built with `Pill`, beside GlassChat's hand-built buttons (friends, voice, chat menu) matches them: same body and rim, the gold camera over the rim, no shadow on the neighbours. The hover highlight wasn't part of the check. |
+| LibGlass-1.0 r6 | The opt-in clean preset, `New({ preset = "clean" })`, and an independent body opacity, `bodyAlpha` (#41): thin rims, no grain, softer bars and shadow, neutral empty tracks | No default changes (parity passes, no new runtime texture). **Checked in game** (2026-10-13) with the probe (`Tools/GlassComparison`): clear (0.24) and smoked bodies match the earlier hand recipe, and the neutral track makes remaining health clearer at low fill. Clean discs and Pills weren't part of the check; they are left to the consumers' beta. |
