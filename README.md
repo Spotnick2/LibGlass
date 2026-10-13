@@ -6,9 +6,8 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** `r1` released (GlassUnitFrames' `Glass.lua` v3, unchanged look; pilot:
-> GlassUnitFrames). r2 adds `Glass.Disc` (round glass); untagged until its in-game check.
-> See `docs/PLAN.md`.
+> **Status:** r5 released. Revision 6 adds the opt-in clean preset; checked in game
+> for clear and smoked surfaces, but still unreleased. Existing defaults are unchanged.
 
 ## Embedding
 
@@ -55,8 +54,45 @@ local pill, p = Glass.Pill(button)                   -- r5: a small glass button
 
 ## API
 
+### Clean material (revision 6, opt-in)
+
+```lua
+local Glass = LibStub("LibGlass-1.0"):New({
+    preset = "clean",
+    bodyAlpha = 0.24, -- clear; try 0.50–0.80 for smoked reading surfaces
+})
+local g = Glass.Apply(frame, "large") -- resolves to thin; small resolves to thin_small
+local inset = Glass.Inset("large")   -- 4, matching the resolved rim
+```
+
+Clean selects no grain, gloss 0.25, bottom shading 0.15, neutral empty tracks,
+shadow strength 0.30 and thin rectangular rims. Discs keep their existing rim
+geometry. Pill still hides its shadow. No textures are added or replaced.
+
+`bodyAlpha` is independent of the preset and works with the original material too.
+It accepts a plain number in 0..1 and is stored separately as `STYLE.bodyAlpha`.
+Each new body uses that opacity with the current tint RGB, even if a consumer
+replaces `STYLE.tint` between builds. Set `STYLE.bodyAlpha = nil` to follow the
+tint table's alpha again. Precedence is library defaults, preset, `opts.style`,
+then the explicit `bodyAlpha` option. Existing surfaces are not repainted.
+Omitting both new options retains the original appearance.
+
+Override individual choices through `style`, e.g. `{ trackTop = 0.2, gloss = 0.45,
+shadowAlpha = 0.5, thinRim = false }`. The new STYLE fields default to `shadowAlpha = 1`
+and `thinRim = false`. They affect subsequently built surfaces. Existing live
+setters such as `SetTrackAlpha` and `SetSurfaceTint` remain available; changing
+STYLE does not repaint existing surfaces. For one surface's tint/opacity:
+
+```lua
+Glass.SetSurfaceTint(g, 0.13, 0.16, 0.22, 0.8)
+Glass.SetSurfaceTint(g) -- restore its built tint and opacity
+```
+
+### Functions
+
 `LibStub("LibGlass-1.0"):New(opts?)` returns an instance (`opts.style`: `STYLE` overrides,
-`opts.font`: a `FONTS` key). Its functions are dot-called:
+`opts.font`: a `FONTS` key; revision 6 adds `opts.preset = "clean"` and independent
+`opts.bodyAlpha`). Its functions are dot-called:
 
 | Function | Since | |
 |---|---|---|
@@ -76,6 +112,9 @@ Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`
 from r2 `disc`, `disc_small`, from r3 `thin`, `thin_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 Region fields: `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
 `bar.{glassMask,track,trackClip,overlay,trackColor}`.
+
+`g.size` records the resolved texture-set key: on a clean instance, requesting
+`large`/`small` yields `thin`/`thin_small`. This is the geometry Sheen uses.
 
 The full write-up of the material is `docs/GLASS-MATERIAL.md`.
 

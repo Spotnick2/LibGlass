@@ -98,7 +98,11 @@ local function scenario(Glass)
         local t = Glass[k]
         local ks = {}
         for key in pairs(t) do
-            if key ~= "disabledAlpha" then ks[#ks + 1] = key end   -- added in r3 (SetSurfaceEnabled)
+            -- Additive settings absent from v3; widget-call parity below still
+            -- checks that their defaults do not change the original rendering.
+            if key ~= "disabledAlpha" and key ~= "thinRim" and key ~= "shadowAlpha" then
+                ks[#ks + 1] = key
+            end
         end
         table.sort(ks)
         for _, key in ipairs(ks) do

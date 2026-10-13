@@ -48,7 +48,11 @@ never remove, rename or change the meaning of any of these. A breaking change is
 side by side.
 
 - **`LibGlass:New(opts?)`** returns a per-addon **instance**. Opts: `style` (overrides of
-  `STYLE`), `font` (a `FONTS` key).
+  `STYLE`), `font` (a `FONTS` key), and from r6 `preset` (`"clean"`; anything else errors) and
+  `bodyAlpha` (a plain number in 0..1). Precedence: defaults, preset, `style`, then `bodyAlpha`.
+  r6 `STYLE` keys: `thinRim` (Apply and Inset map large/small to thin/thin_small), `shadowAlpha`
+  (body shadow, default 1) and `bodyAlpha` (body opacity read at build time, over `tint[4]`;
+  nil = the tint's alpha). Construction settings: built surfaces are never restyled.
 - Instance functions, dot-called (`Glass.Apply(...)`, not `Glass:Apply`): `Apply(host,
   "large"|"small"|"thin"|"thin_small") → g` (thin sizes r3), `Disc(host, "disc"|"disc_small")
   → g` (r2; square host, `g.edge` nil), `Bar(parent, height)`, `Mask(host, file, margin,
@@ -63,7 +67,9 @@ side by side.
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
   `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 - **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
-  `bar.{glassMask,track,trackClip,overlay,trackColor}`. GlassChat, AltStable, Gnomesweeper and
+  `bar.{glassMask,track,trackClip,overlay,trackColor}`. From r6, `g.size` is the resolved
+  texture-set key: clean instances map requested large/small to thin/thin_small;
+  Sheen uses that resolved geometry. GlassChat, AltStable, Gnomesweeper and
   LibGroupBuffs retint, re-alpha or hide these directly.
 - **Texture file names** in `Media\`: frames built earlier keep the old path. Add, never rename.
 - AltStable mutates its instance's `STYLE` before each `Apply`. That must keep working.
@@ -132,7 +138,7 @@ method recorded and checked against the API dump by `test_methods.lua`), `tests\
   call. A deliberate look change says so in its PR and adjusts that test (and `docs/GLASS-MATERIAL.md`).
 - Must cover: instance isolation; the upgrade path (r1: a synthetic newer copy loaded over the
   current one; from r2: every frozen release `tests\fixtures\LibGlass-rN.lua`, listed in
-  `test_upgrade.lua`'s `RELEASES`), including hooks after an upgrade and an older copy loading
+  `tests/harness.lua`'s shared `RELEASES`), including hooks after an upgrade and an older copy loading
   second being a no-op. The fixture of the current MINOR must equal `LibGlass.lua`, so a code change
   after a release fails until MINOR is raised. Only the Lua is compared: a `Media\`, XML or
   LibStub change after a release needs the same bump, by hand. After pushing tag `rN`, freeze
