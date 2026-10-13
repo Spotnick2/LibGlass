@@ -48,7 +48,11 @@ never remove, rename or change the meaning of any of these. A breaking change is
 side by side.
 
 - **`LibGlass:New(opts?)`** returns a per-addon **instance**. Opts: `style` (overrides of
-  `STYLE`), `font` (a `FONTS` key).
+  `STYLE`), `font` (a `FONTS` key), and from r6 `preset` (`"clean"`; anything else errors) and
+  `bodyAlpha` (a plain number in 0..1). Precedence: defaults, preset, `style`, then `bodyAlpha`.
+  r6 `STYLE` keys: `thinRim` (Apply and Inset map large/small to thin/thin_small), `shadowAlpha`
+  (body shadow, default 1) and `bodyAlpha` (body opacity read at build time, over `tint[4]`;
+  nil = the tint's alpha). Construction settings: built surfaces are never restyled.
 - Instance functions, dot-called (`Glass.Apply(...)`, not `Glass:Apply`): `Apply(host,
   "large"|"small"|"thin"|"thin_small") → g` (thin sizes r3), `Disc(host, "disc"|"disc_small")
   → g` (r2; square host, `g.edge` nil), `Bar(parent, height)`, `Mask(host, file, margin,
