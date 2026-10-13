@@ -312,9 +312,11 @@ local function buildBody(inst, host, g, S)
     local st = inst.STYLE
     local tint = host:CreateTexture(nil, "BACKGROUND", nil, -6)
     tint:SetAllPoints(host)
-    tint:SetColorTexture(st.tint[1], st.tint[2], st.tint[3], st.tint[4])
+    local alpha = st.bodyAlpha
+    if alpha == nil then alpha = st.tint[4] end
+    tint:SetColorTexture(st.tint[1], st.tint[2], st.tint[3], alpha)
     tint:AddMaskTexture(g.mask)
-    tint.glassColor = { st.tint[1], st.tint[2], st.tint[3], st.tint[4] }   -- r3: SetSurfaceTint(g) goes back to it
+    tint.glassColor = { st.tint[1], st.tint[2], st.tint[3], alpha }   -- r3: SetSurfaceTint(g) goes back to it
     g.tint = tint
 
     local grain = host:CreateTexture(nil, "BACKGROUND", nil, -5)
@@ -364,7 +366,7 @@ function lib.impl.Apply(inst, host, size)
         -- and level 2 would be that lost frame (no position).
         error(MAJOR .. ": " .. size .. ' is a disc size: use Glass.Disc(host, "' .. size .. '")', 3)
     end
-    local g = { size = size or "large" }
+    local g = { size = size }
 
     local sh = host:CreateTexture(nil, "BACKGROUND", nil, -8)
     sh:SetTexture(lib.MEDIA .. S.shadow)
@@ -372,7 +374,8 @@ function lib.impl.Apply(inst, host, size)
     sh:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", S.shadowPad[3], S.shadowPad[4])
     slice(sh, S.shadowMargin)
     g.shadow = sh
-    if inst.STYLE.shadowAlpha ~= 1 then sh:SetAlpha(inst.STYLE.shadowAlpha) end
+    local shadowAlpha = inst.STYLE.shadowAlpha
+    if shadowAlpha ~= nil and shadowAlpha ~= 1 then sh:SetAlpha(shadowAlpha) end
 
     g.mask = inst.Mask(host, S.mask, S.maskMargin)
 
@@ -411,7 +414,8 @@ function lib.impl.Disc(inst, host, size)
     sh:SetPoint("TOPLEFT", host, "TOPLEFT", -out, out)
     sh:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", out, -out)
     g.shadow = sh
-    if inst.STYLE.shadowAlpha ~= 1 then sh:SetAlpha(inst.STYLE.shadowAlpha) end
+    local shadowAlpha = inst.STYLE.shadowAlpha
+    if shadowAlpha ~= nil and shadowAlpha ~= 1 then sh:SetAlpha(shadowAlpha) end
 
     g.mask = inst.Mask(host, S.mask, nil)
 
@@ -838,7 +842,7 @@ function lib.impl.Migrate(inst)
 end
 
 -- A per-addon instance: its own STYLE (defaults, opts.preset, opts.style,
--- then opts.bodyAlpha for tint alpha only), EDGE,
+-- then opts.bodyAlpha as an independent body opacity), EDGE,
 -- fontKey (opts.font), TUNABLES and surfaces. Shared read-only: MEDIA, SIZES,
 -- FONTS, TRACK_LEVEL, OVERLAY_LEVEL.
 function lib:New(opts)
@@ -868,7 +872,7 @@ function lib:New(opts)
                           trackTop = 0, shadowAlpha = 0.30, thinRim = true })
     end
     if opts.style then fill(inst.STYLE, opts.style) end
-    if opts.bodyAlpha ~= nil then inst.STYLE.tint[4] = opts.bodyAlpha end
+    if opts.bodyAlpha ~= nil then inst.STYLE.bodyAlpha = opts.bodyAlpha end
     lib.impl.Migrate(inst)
     table.insert(lib.instances, inst)
     return inst

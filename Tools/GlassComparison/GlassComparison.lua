@@ -133,7 +133,7 @@ SlashCmdList.LIBGLASSCOMPARISON = function(message)
         if not value or value < 0 or value > 1 then say("Use /lgprobe smoke 0..1 (all variants, default 0.24).") return end
         smokeAlpha = value
         show()
-        for _, entry in ipairs(surfaces) do entry.glass.SetSurfaceTint(entry.g, 0.13, 0.16, 0.22, value) end
+        for _, entry in ipairs(surfaces) do entry.glass.SetSurfaceTint(entry.g, nil, nil, nil, value) end
         say("All variants: body alpha " .. value .. ".")
     elseif command == "value" then
         local value = tonumber(arg)

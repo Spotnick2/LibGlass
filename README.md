@@ -70,8 +70,11 @@ shadow strength 0.30 and thin rectangular rims. Discs keep their existing rim
 geometry. Pill still hides its shadow. No textures are added or replaced.
 
 `bodyAlpha` is independent of the preset and works with the original material too.
-It accepts a plain number in 0..1, preserving the tint RGB. Precedence is library
-defaults, then preset, then `opts.style`, then `bodyAlpha` for tint alpha only.
+It accepts a plain number in 0..1 and is stored separately as `STYLE.bodyAlpha`.
+Each new body uses that opacity with the current tint RGB, even if a consumer
+replaces `STYLE.tint` between builds. Set `STYLE.bodyAlpha = nil` to follow the
+tint table's alpha again. Precedence is library defaults, preset, `opts.style`,
+then the explicit `bodyAlpha` option. Existing surfaces are not repainted.
 Omitting both new options retains the original appearance.
 
 Override individual choices through `style`, e.g. `{ trackTop = 0.2, gloss = 0.45,
@@ -109,6 +112,9 @@ Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`
 from r2 `disc`, `disc_small`, from r3 `thin`, `thin_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 Region fields: `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
 `bar.{glassMask,track,trackClip,overlay,trackColor}`.
+
+`g.size` records the resolved texture-set key: on a clean instance, requesting
+`large`/`small` yields `thin`/`thin_small`. This is the geometry Sheen uses.
 
 The full write-up of the material is `docs/GLASS-MATERIAL.md`.
 

@@ -165,11 +165,14 @@ Pill's default small surface follows the preset, but Pill still hides its shadow
 and grain. Disc geometry is unchanged; its body and shadow use the chosen style.
 
 `bodyAlpha` is an independent construction option, a plain number in 0..1. It
-sets `STYLE.tint[4]`, preserving RGB; 0.24 is clear, and 0.50–0.80 were explored
+is stored as `STYLE.bodyAlpha` and overrides tint alpha when each body is built,
+preserving the current tint RGB even if the tint table is replaced; 0.24 is clear, and 0.50–0.80 were explored
 for smoked reading surfaces. Precedence: original defaults, clean preset,
 explicit `opts.style`, then `bodyAlpha` for opacity only. An unknown preset or
 invalid bodyAlpha errors before an instance is registered. The option also
-works without a preset. Other style overrides retain their existing contract.
+works without a preset. Set `STYLE.bodyAlpha = nil` to use `STYLE.tint[4]` again;
+zero is an explicit transparent override. Already-built surfaces do not change.
+Other style overrides retain their existing contract.
 
 These are construction settings, not a live preset switch. STYLE changes affect
 later builds; existing per-surface tint and live track setters work as before.

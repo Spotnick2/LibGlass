@@ -3,10 +3,10 @@ param(
     [string]$AddOnsPath = "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns"
 )
 $ErrorActionPreference = "Stop"
-$probeFiles = @("GlassComparison.toc", "GlassComparison.lua", "Media\outer_shadow.tga", "Media\outer_shadow_small.tga")
+$probeFiles = @("GlassComparison.toc", "GlassComparison.lua")
 foreach ($file in $probeFiles) {
     if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $file))) {
-        throw "Missing probe file: $file. Run make_textures.py if textures are missing."
+        throw "Missing probe file: $file."
     }
 }
 $luac = "C:\Program Files (x86)\Lua\5.1\luac.exe"

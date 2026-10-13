@@ -59,9 +59,3 @@ LibStub selection; enable only this addon for an exact checkout baseline.
 Record which variant communicates remaining health most immediately at 3% and
 50%, while retaining enough definition to see the empty bar. No candidate is
 promoted into the library by this experiment.
-
-## Earlier assets
-
-The round-1 exterior-shadow textures and generator remain for reference but
-are unused. The generator writes only the probe's Media directory and requires
-no third-party dependencies. All current variants use the library shadow.

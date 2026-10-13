@@ -67,7 +67,7 @@ eq(g.tint._color[4], 0.8, "disabled state preserves tint opacity")
 clean.SetSurfaceEnabled(g, true)
 clean.SetSurfaceTint(g)
 eq(g.tint._color[4], 0.24, "reset returns to built opacity")
-eq(smoked.STYLE.tint[4], 0.8, "tint tables isolated")
+eq(smoked.STYLE.bodyAlpha, 0.8, "body opacity isolated")
 local count = #lib.instances
 for _, opts in ipairs({ { preset = "unknown" }, { bodyAlpha = -1 }, { bodyAlpha = 2 },
                        { bodyAlpha = "0.5" }, { bodyAlpha = 0/0 } }) do
@@ -75,20 +75,74 @@ for _, opts in ipairs({ { preset = "unknown" }, { bodyAlpha = -1 }, { bodyAlpha 
 end
 eq(#lib.instances, count, "bad options do not register an instance")
 
+-- A consumer may replace tint before every build (AltStable's PushPreset).
+smoked.STYLE.tint = { 0.4, 0.3, 0.2, 0.1 }
+local retinted = surface(smoked)
+eq(retinted.tint._color[1], 0.4, "replacement tint RGB used")
+eq(retinted.tint._color[4], 0.8, "independent opacity survives replacing tint")
+smoked.SetSurfaceTint(retinted, 1, 0, 0, 0.2)
+smoked.SetSurfaceTint(retinted)
+eq(retinted.tint._color[4], 0.8, "reset restores effective built opacity")
+smoked.STYLE.bodyAlpha = 0
+eq(surface(smoked).tint._color[4], 0, "zero opacity survives replacing tint")
+smoked.STYLE.bodyAlpha = nil
+eq(surface(smoked).tint._color[4], 0.1, "nil opacity follows tint again")
+smoked.STYLE.shadowAlpha = nil
+local noShadowOverride = surface(smoked)
+local nilShadowCalls = 0
+for _, call in ipairs(noShadowOverride.shadow._log) do
+    if call[1] == "SetAlpha" then nilShadowCalls = nilShadowCalls + 1 end
+end
+eq(nilShadowCalls, 0, "nil shadow override makes no SetAlpha call")
+
+-- Upgrading a clean instance must preserve its overrides and existing widgets.
+local persistent = lib:New({ preset = "clean", bodyAlpha = 0.8 })
+local persistentSurface = surface(persistent)
+local heldApply, heldStyle = persistent.Apply, persistent.STYLE
+local beforeUpgrade = {}
+for i, w in ipairs(WoW.widgets) do beforeUpgrade[i] = #w._log end
+loadCopy(synthetic(currentMinor() + 1), "FutureHost")
+eq(persistent.STYLE, heldStyle, "clean STYLE identity preserved")
+eq(persistent.Apply, heldApply, "clean wrapper identity preserved")
+eq(persistent.STYLE.thinRim, true, "clean rim survives upgrade")
+eq(persistent.STYLE.shadowAlpha, 0.30, "clean shadow survives upgrade")
+eq(persistent.STYLE.bodyAlpha, 0.8, "clean opacity survives upgrade")
+eq(persistent.STYLE.trackTop, 0, "neutral track survives upgrade")
+for i, length in ipairs(beforeUpgrade) do
+    eq(#WoW.widgets[i]._log, length, "clean upgrade never repaints")
+end
+eq(#WoW.widgets, #beforeUpgrade, "clean upgrade builds no widgets")
+eq(persistentSurface.size, "thin", "built geometry survives upgrade")
+local afterUpgrade = surface(persistent)
+eq(afterUpgrade.size, "thin", "held wrapper still builds thin geometry")
+eq(afterUpgrade.tint._color[4], 0.8, "held wrapper still applies opacity")
+
 -- Every released instance must remain classic after upgrading, including new
 -- surfaces built through its old wrapper. Existing regions must not be repainted.
-for n = 1, 5 do
+for _, file in ipairs(RELEASES) do
     WoW.reset(); WoW.resetLibStub()
-    local oldLib = loadCopy(fixtureCopy("LibGlass-r" .. n .. ".lua"), "OldHost")
+    local oldLib = loadCopy(fixtureCopy(file), "OldHost")
     local old = oldLib:New()
     local before = surface(old)
     local logs = {}
     for i, w in ipairs(WoW.widgets) do logs[i] = #w._log end
     lib = loadLibrary("NewHost")
-    for i, length in ipairs(logs) do eq(#WoW.widgets[i]._log, length, "upgrade does not repaint r" .. n) end
+    for i, length in ipairs(logs) do eq(#WoW.widgets[i]._log, length, "upgrade does not repaint " .. file) end
     eq(before.size, "large", "existing size preserved")
     eq(surface(old).size, "large", "old instance still builds classic")
     eq(old.STYLE.shadowAlpha, 1, "old instance receives classic shadow default")
     eq(surface(lib:New({ preset = "clean", bodyAlpha = 0.8 })).size, "thin", "new preset after upgrade")
+
+    local currentClean = lib:New({ preset = "clean", bodyAlpha = 0.8 })
+    local cleanSurface = surface(currentClean)
+    local calls = #cleanSurface.tint._log
+    local impl, media = lib.impl.Apply, lib.MEDIA
+    loadCopy(fixtureCopy(file), "OlderSecond")
+    eq(lib.impl.Apply, impl, "older copy leaves implementation intact: " .. file)
+    eq(lib.MEDIA, media, "older copy leaves media intact: " .. file)
+    eq(#cleanSurface.tint._log, calls, "older copy does not repaint clean body")
+    eq(currentClean.STYLE.thinRim, true, "older copy preserves clean rim")
+    eq(currentClean.STYLE.shadowAlpha, 0.30, "older copy preserves clean shadow")
+    eq(surface(currentClean).tint._color[4], 0.8, "older copy preserves independent opacity")
 end
 done("test_clean")
