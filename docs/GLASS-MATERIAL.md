@@ -144,6 +144,56 @@ small).
 
 ## 4. The layer stack (`LibGlass.lua`)
 
+### Opt-in clean material (revision 6, unreleased)
+
+`LibStub("LibGlass-1.0"):New({ preset = "clean", bodyAlpha = 0.24 })` selects
+the treatment explored in Tools/GlassComparison. The preset overrides only:
+
+| STYLE field | Clean | Original default |
+|---|---|---|
+| grain | 0 | 0.45 |
+| gloss | 0.25 | 0.45 |
+| innerShadow | 0.15 | 0.35 |
+| trackTop | 0 | 0.75 |
+| shadowAlpha (new) | 0.30 | 1 |
+| thinRim (new) | true | false |
+
+`thinRim` resolves rectangular `large`/`small` to `thin`/`thin_small` in Apply
+and Inset, so content insets agree (4/2). `g.size` records the resolved size;
+Sheen therefore follows its geometry. Explicit thin sizes work as before.
+Pill's default small surface follows the preset, but Pill still hides its shadow
+and grain. Disc geometry is unchanged; its body and shadow use the chosen style.
+
+`bodyAlpha` is an independent construction option, a plain number in 0..1. It
+sets `STYLE.tint[4]`, preserving RGB; 0.24 is clear, and 0.50–0.80 were explored
+for smoked reading surfaces. Precedence: original defaults, clean preset,
+explicit `opts.style`, then `bodyAlpha` for opacity only. An unknown preset or
+invalid bodyAlpha errors before an instance is registered. The option also
+works without a preset. Other style overrides retain their existing contract.
+
+These are construction settings, not a live preset switch. STYLE changes affect
+later builds; existing per-surface tint and live track setters work as before.
+SetSurfaceTint with no colour restores the built tint including its opacity.
+Each instance owns its settings. Upgrading older copies fills the new fields
+with original defaults and never repaints or opts an existing instance into clean.
+
+In-game screenshots at effective scale 0.64 supported removing grain, moderate
+bar lighting and an optional smoked body. At 3% and 50%, neutral tracks made
+remaining health clearer; at 100% all track variants matched. These are visual
+observations over the tested scenery, not a claim of backdrop blur or universal
+readability. **Integrated preset checked in game (2026-10-13):** the owner's
+Probe 4 screenshot reports library r6, effective scale 0.63999998569489, body
+alpha 0.24 and fill 3%. Thin rims, smooth bodies and the neutral track visually
+match the preceding manual recipe. A second screenshot shows smoked bodies
+with the same rim and bar definition; its exact opacity is not printed in the
+capture. These captures validate the rectangular panel, unit-frame and small
+control samples. Client build, motion readability, clean discs and clean Pill
+were not established by this check. Revision 6 remains unreleased.
+The existing probe now uses this API, with track overrides for A/B and neutral C.
+All 27 existing textures and original default rendering remain unchanged.
+
+### Original layer stack
+
 On a host frame, bottom to top:
 
 | Layer | Draw layer | Region | Setting |

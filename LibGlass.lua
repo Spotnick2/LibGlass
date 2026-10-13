@@ -31,7 +31,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 5
+local MAJOR, MINOR = "LibGlass-1.0", 6
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -125,6 +125,8 @@ lib.defaults = lib.defaults or {}
 lib.defaults.STYLE = {
     tint = { 0.13, 0.16, 0.22, 0.24 },   -- cool, light: glass, not smoked plastic
     grain = 0.45,                        -- faint frost; cannot track the scene behind
+    thinRim = false,                     -- r6: map large/small to thin/thin_small, including Inset
+    shadowAlpha = 1,                     -- r6: body shadow strength; Pill still hides its shadow
     wash = 0.18,                         -- top-down white gradient inside the body
     gloss = 0.45,                        -- ADD highlight on bars
     innerShadow = 0.35,                  -- bottom shade on bars
@@ -190,6 +192,15 @@ end
 -- Helpers (called only from impl functions, never captured by a closure that
 -- outlives the call)
 --------------------------------------------------------------------------------
+
+local function rectSize(inst, size)
+    size = size or "large"
+    if inst.STYLE.thinRim then
+        if size == "large" then return "thin" end
+        if size == "small" then return "thin_small" end
+    end
+    return size
+end
 
 local function slice(tex, m)
     tex:SetTextureSliceMargins(m, m, m, m)
@@ -346,7 +357,8 @@ end
 -- g.top is the frame to parent text and anything that must sit above the rim.
 -- Reads the instance's STYLE now, so a caller may change it between Applies.
 function lib.impl.Apply(inst, host, size)
-    local S = lib.SIZES[size or "large"]
+    size = rectSize(inst, size)
+    local S = lib.SIZES[size]
     if S and S.shape == "disc" then
         -- Level 3: the consumer's line. The instance wrapper tail-calls us,
         -- and level 2 would be that lost frame (no position).
@@ -360,6 +372,7 @@ function lib.impl.Apply(inst, host, size)
     sh:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", S.shadowPad[3], S.shadowPad[4])
     slice(sh, S.shadowMargin)
     g.shadow = sh
+    if inst.STYLE.shadowAlpha ~= 1 then sh:SetAlpha(inst.STYLE.shadowAlpha) end
 
     g.mask = inst.Mask(host, S.mask, S.maskMargin)
 
@@ -398,6 +411,7 @@ function lib.impl.Disc(inst, host, size)
     sh:SetPoint("TOPLEFT", host, "TOPLEFT", -out, out)
     sh:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", out, -out)
     g.shadow = sh
+    if inst.STYLE.shadowAlpha ~= 1 then sh:SetAlpha(inst.STYLE.shadowAlpha) end
 
     g.mask = inst.Mask(host, S.mask, nil)
 
@@ -480,7 +494,7 @@ end
 
 -- Content inset (px) inside the bevel for this material size.
 function lib.impl.Inset(inst, size)
-    return lib.SIZES[size or "large"].inset
+    return lib.SIZES[rectSize(inst, size)].inset
 end
 
 -- A glass StatusBar: masked rounded fill, ADD gloss, inner shadow, thin edge.
@@ -823,7 +837,8 @@ function lib.impl.Migrate(inst)
     return inst
 end
 
--- A per-addon instance: its own STYLE (the defaults, then opts.style), EDGE,
+-- A per-addon instance: its own STYLE (defaults, opts.preset, opts.style,
+-- then opts.bodyAlpha for tint alpha only), EDGE,
 -- fontKey (opts.font), TUNABLES and surfaces. Shared read-only: MEDIA, SIZES,
 -- FONTS, TRACK_LEVEL, OVERLAY_LEVEL.
 function lib:New(opts)
@@ -836,11 +851,24 @@ function lib:New(opts)
             .. " (ready = " .. tostring(lib.ready) .. "); see the first error this session", 2)
     end
     opts = opts or {}
+    if opts.preset ~= nil and opts.preset ~= "clean" then
+        error(MAJOR .. ": unknown preset " .. tostring(opts.preset) .. ' (use "clean" or omit it)', 2)
+    end
+    if opts.bodyAlpha ~= nil and not inRange(opts.bodyAlpha, 0, 1) then
+        error(MAJOR .. ": bodyAlpha must be a plain number in 0..1", 2)
+    end
     if opts.font ~= nil and not lib.FONTS[opts.font] then
         error(MAJOR .. ": unknown font " .. tostring(opts.font) .. " (see FONTS)", 2)
     end
     local inst = { STYLE = fill({}, lib.defaults.STYLE), fontKey = opts.font }
+    -- Opt-in only. Explicit style overrides win; opacity is independent of
+    -- the preset and applied last so a caller can keep its own tint RGB.
+    if opts.preset == "clean" then
+        fill(inst.STYLE, { grain = 0, gloss = 0.25, innerShadow = 0.15,
+                          trackTop = 0, shadowAlpha = 0.30, thinRim = true })
+    end
     if opts.style then fill(inst.STYLE, opts.style) end
+    if opts.bodyAlpha ~= nil then inst.STYLE.tint[4] = opts.bodyAlpha end
     lib.impl.Migrate(inst)
     table.insert(lib.instances, inst)
     return inst
