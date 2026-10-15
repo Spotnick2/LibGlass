@@ -13,9 +13,12 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-15): `r7` released** (tag on `7d0dca4`: the disabled look dims the wash and
-edge glow through their gradients, and `SetWash`, #47; checked in game with
-`/fp steps lg r7`; every tag from r1 has a GitHub Release, #30). `r6` is `9a23930` (the opt-in
+**Status (2026-10-15): `r8` released** (tag on `7b1b1e6`: the bar fill's opacity is drawn in its
+gradient, so coloured bars are see-through as designed, #53; checked in game with
+`/fp steps lg fill` and `preview`; every tag from r1 has a GitHub Release, #30). GlassUnitFrames'
+`test_frames` still asserts the old fill alpha in three places (GlassUnitFrames#115). `r7` is
+`7d0dca4` (the disabled look dims the wash and edge glow through their gradients, and `SetWash`,
+#47). `r6` is `9a23930` (the opt-in
 clean preset and independent body opacity, #41). `r5` is `efa8b40`
 (`Glass.Pill`, #31). `r4` is `330ef47` (the disabled look's default 0.4 → 0.25, #24).
 `r3` is `87b3c04` (per-surface tint, disabled look and thin rims, for Time Is Money; checked in

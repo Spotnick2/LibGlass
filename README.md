@@ -6,8 +6,8 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** r7 released: a disabled surface dims its wash and edge glow too, and `SetWash`
-> changes one surface's wash. Existing defaults are unchanged.
+> **Status:** r8 released: a bar's fill opacity (`fillAlpha`, 0.60) is drawn, so coloured bars
+> are see-through as designed. Until r7 every coloured fill drew opaque.
 
 ## Embedding
 
