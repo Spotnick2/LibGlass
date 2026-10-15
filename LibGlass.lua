@@ -239,20 +239,22 @@ local function paintGradient(r)
 end
 
 -- dimRegion for a gradient region: the dim goes through the gradient.
--- `peak` stands in for the record a region built by an older copy lacks;
--- without either, the region is skipped. Clears an older copy's glassBase.
+-- `peak` stands in for the record a region built by an older copy lacks.
+-- Without either, the dim is still recorded or cleared, so the next setter
+-- that supplies a peak (SetEdge) paints it right; only the repaint waits.
+-- Enabling gives back the alpha an older copy's dimRegion lowered.
 local function dimGradient(r, dim, peak)
     if not r then return end
     if r.glassPeak == nil then r.glassPeak = peak end
-    if r.glassPeak == nil then return end
     if dim then
         r.glassDim = dim
-    elseif r.glassDim ~= nil then
+    elseif r.glassDim ~= nil or r.glassBase ~= nil then
+        if r.glassBase ~= nil then r:SetAlpha(r.glassBase) end
         r.glassBase, r.glassDim = nil, nil
     else
         return
     end
-    paintGradient(r)
+    if r.glassPeak ~= nil then paintGradient(r) end
 end
 
 -- Paint an edge: the top line's alpha, the glow's peak, the bottom line's, the

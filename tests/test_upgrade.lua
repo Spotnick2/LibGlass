@@ -384,9 +384,16 @@ for _, file in ipairs(RELEASES) do
         bar:SetStatusBarColor(1, 0, 0)
         local d = rawget(A, "Disc") and A.Disc(newHost(64, 64), "disc_small")
         local gB = B.Apply(newHost(), "small")
-        -- A surface the older copy disabled (r3 on), through SetAlpha on its wash.
+        -- A surface the older copy disabled (r3 on), through SetAlpha on its wash
+        -- and glow; its edge is custom, so r7 has no peak for the glow (#49).
         local gOff = rawget(B, "SetSurfaceEnabled") and B.Apply(newHost(), "large")
-        if gOff then B.SetSurfaceEnabled(gOff, false) end
+        if gOff then
+            B.SetEdge(gOff, 0.6, 0.2, 0.5)
+            B.SetSurfaceEnabled(gOff, false)
+        end
+        -- A custom edge the older copy painted, on an enabled surface.
+        local gCustom = B.Apply(newHost(), "large")
+        B.SetEdge(gCustom, 0.6, 0.2, 0.5)
         local held = { impl = lib.impl, instances = lib.instances, functions = lib.FUNCTIONS,
                        SIZES = lib.SIZES, STYLE = A.STYLE, setRim = A.TUNABLES[2].set }
         local names = {}
@@ -442,7 +449,21 @@ for _, file in ipairs(RELEASES) do
             near(gOff.wash._gradient[3].a, B.STYLE.wash, r .. " upgraded: its wash painted at the peak")
             check(gOff.wash.glassBase == nil and gOff.wash.glassDim == nil, r .. " upgraded: and " .. r .. "'s record cleared")
             eq(gOff.rim._alpha, 0.7, r .. " upgraded: its rim given back")
+            check(gOff.edge.glow.glassDim == nil and gOff.edge.glow.glassBase == nil,
+                  r .. " upgraded: its custom glow's dim cleared, though r7 has no peak for it")
+            eq(gOff.edge.glow._alpha, 1, r .. " upgraded: and the alpha " .. r .. " lowered given back")
+            B.SetEdge(gOff, 0.6, 0.2, 0.5)
+            near(gOff.edge.glow._gradient[3].a, 0.2, r .. " upgraded: so SetEdge paints it undimmed")
         end
+        -- A custom edge from the older copy, disabled under this one: no peak to
+        -- repaint yet, but the dim is recorded for the next SetEdge.
+        B.SetSurfaceEnabled(gCustom, false)
+        near(gCustom.edge.glow._gradient[3].a, 0.2, r .. " upgraded: an unknown peak isn't repainted")
+        B.SetEdge(gCustom, 0.6, 0.2, 0.5)
+        near(gCustom.edge.glow._gradient[3].a, 0.2 * B.STYLE.disabledAlpha,
+             r .. " upgraded: a SetEdge on a custom glow disabled without a peak paints it dimmed")
+        B.SetSurfaceEnabled(gCustom, true)
+        near(gCustom.edge.glow._gradient[3].a, 0.2, r .. " upgraded: and enabling gives it back")
         if d then
             A.SetSurfaceEnabled(d, false)
             near(d.rim._alpha, 0.6 * A.STYLE.disabledAlpha, r .. " upgraded: and an " .. r .. "-built disc")
