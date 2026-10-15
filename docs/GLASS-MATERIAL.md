@@ -238,19 +238,20 @@ which is `nil` (a circle has no top line):
 rim (§3) and its inset (`Glass.Inset("thin")` = 4, `"thin_small"` = 2): same mask, shadow, slice
 margins, edge and sheen. Opt-in per surface, so nothing already built changes.
 
-**Per-surface options (r3).** Two setters act on one surface (`g` from `Apply` or `Disc`):
+**Per-surface options (r3, r7).** Three setters act on one surface (`g` from `Apply` or `Disc`):
 
 | Setter | What it does | Owns |
 |---|---|---|
 | `Glass.SetSurfaceTint(g, r, g, b, a?)` | that surface's body tint: an accent on one button (a restrained green), a near-opaque body for a dialog over busy content (alpha ~0.9). A nil `a` keeps the surface's built alpha. `SetSurfaceTint(g)` goes back to the colour the surface was **built** with (recorded as `g.tint.glassColor`; a surface an older copy built falls back to `STYLE.tint`), so AltStable-style `STYLE` changes between `Apply`s don't leak in. Returns `false` (and changes nothing) unless every channel is a number in 0..1 | `g.tint`'s colour; no instance setter touches it |
-| `Glass.SetSurfaceEnabled(g, enabled)` | the disabled look: a falsy `enabled` (as the client's `SetEnabled`) **scales** the alpha of `g.tint`, `g.grain`, `g.wash`, `g.dark`, `g.rim` and the edge's three lines by `STYLE.disabledAlpha` (0.25 from r4; r3 shipped 0.4); a truthy one gives each region back the alpha it had, a consumer's own included (a consumer's 0.2 wash goes to 0.2 × `disabledAlpha` and back to 0.2). Disabling twice doesn't dim twice. Shadow and sheen are left alone; text is the caller's to dim. Returns `false` for anything that isn't a surface. r3's 0.4 was **subtle** at button size in game (Time Is Money), hence 0.25 (#24). An upgrade fills the key only where it is missing, so an instance keeps the value of the first copy that gave it one: made by r3, or by r1/r2 and upgraded by an r3 copy first, it keeps 0.4; otherwise it gets 0.25. With r3 and r4 copies both installed, which one an instance gets can depend on addon load order. An instance that sets its own with `New({ style = { disabledAlpha = ... } })` is unaffected | those regions' alpha while disabled |
+| `Glass.SetSurfaceEnabled(g, enabled)` | the disabled look: a falsy `enabled` (as the client's `SetEnabled`) **scales** the alpha of `g.tint`, `g.grain`, `g.wash`, `g.dark`, `g.rim` and the edge's three lines by `STYLE.disabledAlpha` (0.25 from r4; r3 shipped 0.4); a truthy one gives each region back the alpha it had, a consumer's own included (a consumer's 0.5 dark rim goes to 0.5 × `disabledAlpha` and back to 0.5). The wash and the edge's glow are gradients, which **ignore `SetAlpha`** on Forever (#47): until r7 they didn't dim at all; from r7 they are dimmed **through their gradient**, from the peak recorded on the region (`glassPeak`: the built `STYLE.wash`, then what `SetWash`, `SetEdge` or `SetEdgeAlpha` last set; a region an older copy built falls back to the instance's `STYLE`; an older copy's *custom* glow has no known peak, so its dim is recorded or cleared without a repaint, and the next `SetEdge` paints it right). Disabling twice doesn't dim twice. Shadow and sheen are left alone; text is the caller's to dim. Returns `false` for anything that isn't a surface. r3's 0.4 was **subtle** at button size in game (Time Is Money), hence 0.25 (#24). An upgrade fills the key only where it is missing, so an instance keeps the value of the first copy that gave it one: made by r3, or by r1/r2 and upgraded by an r3 copy first, it keeps 0.4; otherwise it gets 0.25. With r3 and r4 copies both installed, which one an instance gets can depend on addon load order. An instance that sets its own with `New({ style = { disabledAlpha = ... } })` is unaffected | those regions' alpha while disabled; the wash's and glow's gradient |
+| `Glass.SetWash(g, top)` (r7) | that surface's wash: the peak of its top-down white gradient (`STYLE.wash` = 0.18 when built), **0 hides it**. **The way to change a wash**: `g.wash:SetAlpha` has no effect on it (#47), and `SetSurfaceEnabled` repaints the wash from the value recorded here, so a wash repainted with your own `SetGradient` goes back to the recorded value on a disable. A disabled surface's wash stays dimmed. Works on surfaces an older copy built. Returns `false` (and changes nothing) unless `top` is a number in 0..1 | `g.wash`'s gradient and shown state |
 
 They compose: the dim is region alpha, while `SetSurfaceTint`, `SetEdge` and `SetEdgeAlpha` set
 colours, so a disabled accent button keeps its green, dimmed. While a surface is disabled each
 dimmed region keeps its base alpha as `glassBase` and the factor as `glassDim`; `SetRimAlpha`
 updates a disabled rim's base and keeps it dimmed. A consumer's own `SetAlpha` on a dimmed region
 (a hover highlight on the rim) shows until the surface is enabled again, which restores the base:
-set your alphas while the surface is enabled. Both setters work on surfaces an older copy built
+set your alphas while the surface is enabled. All three work on surfaces an older copy built
 (they use only r1's region fields), and take **plain values**: they range-check and truth-test
 their arguments, so a secret would throw.
 
@@ -397,6 +398,7 @@ local d   = Glass.Disc(square, "disc")           -- r2: a round surface on a squ
 local b   = Glass.Apply(button, "thin_small")    -- r3: the thin rim, opt-in ("thin" for large)
 Glass.SetSurfaceTint(b, 0.18, 0.42, 0.22, 0.35)  -- r3: this surface's own tint; (b) = back to STYLE
 Glass.SetSurfaceEnabled(b, button:IsEnabled())   -- r3: dimmed while disabled
+Glass.SetWash(b, 0.08)                           -- r7: this surface's wash (not g.wash:SetAlpha)
 local pill, p = Glass.Pill(button)               -- r5: a small glass button behind its symbol
 Glass.RelevelPill(pill)                          -- r5: after the button's level changed
 Glass.SetFont("friz")                            -- restyles this instance's Glass.Font strings
@@ -414,11 +416,13 @@ Glass.SetRimAlpha(0.5)                           -- this instance's surfaces onl
   would point every addon's new surfaces at a folder that doesn't exist, without an error, once it
   is the newest copy loaded. Nested embedding is unsupported in `-1.0` until it is measured
   (Phase 4 of `docs/PLAN.md`).
-- **Region fields** you may retint, re-alpha or hide: `g.{size,shadow,mask,tint,grain,wash,top,
+- **Region fields** you may retint, re-alpha or hide (but `g.wash` and `g.edge.glow` ignore
+  `SetAlpha`: use `SetWash` and `SetEdge`): `g.{size,shadow,mask,tint,grain,wash,top,
   dark,rim,edge}` (on a disc, `g.edge` is `nil`) and `bar.{glassMask,track,trackClip,overlay,trackColor}`. What the library
   repaints later is only what a setter owns (every rim's alpha after `SetRimAlpha`; `g.tint`'s
-  colour after `SetSurfaceTint`; the alpha of the tint, grain, wash, rims and edge while
-  `SetSurfaceEnabled` has them dimmed) and a bar's fill and track when its colour changes; an upgrade repaints
+  colour after `SetSurfaceTint`; the wash's gradient after `SetWash`; the alpha of the tint,
+  grain, rims and edge lines, and the wash's and glow's gradient, while
+  `SetSurfaceEnabled` has them dimmed or when it gives them back) and a bar's fill and track when its colour changes; an upgrade repaints
   nothing. Prefer the per-surface setters to retinting `g.tint` by hand. A pill (r5) is a plain
   frame you may anchor, show or hide; `RelevelPill` owns its level and its `g.top`'s.
 
@@ -433,6 +437,12 @@ library.
 
 ## 6. Gotchas
 
+- **A gradient texture ignores `SetAlpha`.** Measured twice on 70374 on `g.wash` (GlassActionBars,
+  Glass Quest Tracker; porting guide §3): after `SetAlpha(0)` it kept drawing and `GetAlpha()`
+  still read 1. The wash, the edge's glow and a bar's frost and inner shade are
+  `SetColorTexture` + `SetGradient`, so their alpha lives in the gradient: change a wash with
+  `SetWash`, a glow with `SetEdge`. Whether a `SetAlpha` made *before* `SetGradient` survives is
+  unmeasured (the bar fill does that every repaint, and fill 0.60 was tuned live in game).
 - **Slice margins vs. frame size.** A frame smaller than twice the slice margin still rendered
   in testing, but the corners get squeezed. Use the `small` set below ~40px tall.
 - **Sliced masks fail on boxes small in BOTH directions.** Measured in a sibling glass addon on
@@ -481,3 +491,4 @@ library.
 | LibGlass-1.0 r4 | `STYLE.disabledAlpha` 0.4 → 0.25 (#24) | r3's disabled look was subtle at button size in Time Is Money: the grey label carried most of the signal. A default change, so it reaches instances made by r4 or later, and r1/r2 instances an r4 copy fills first; an instance that already has the key (made by r3, or filled by an r3 copy) keeps 0.4, so with r3 and r4 copies installed the result can depend on load order (the stated limitation of narrow migration). **Not yet checked in game.** |
 | LibGlass-1.0 r5 | `Glass.Pill(button, opts?)` and `Glass.RelevelPill(pill)` (#31): the small glass button behind a symbol, from GlassChat's `Buttons.Style` and AltStable's portrait toggle | No look change for anything built before: a new builder on top of `Apply` (parity passes, no new texture). Same result as the consumers' hand recipe (`tests/test_material.lua` compares them). **Checked in game** (2026-10-09): AltStable's portrait toggle, built with `Pill`, beside GlassChat's hand-built buttons (friends, voice, chat menu) matches them: same body and rim, the gold camera over the rim, no shadow on the neighbours. The hover highlight wasn't part of the check. |
 | LibGlass-1.0 r6 | The opt-in clean preset, `New({ preset = "clean" })`, and an independent body opacity, `bodyAlpha` (#41): thin rims, no grain, softer bars and shadow, neutral empty tracks | No default changes (parity passes, no new runtime texture). **Checked in game** (2026-10-13) with the probe (`Tools/GlassComparison`): clear (0.24) and smoked bodies match the earlier hand recipe, and the neutral track makes remaining health clearer at low fill. Clean discs and Pills weren't part of the check; they are left to the consumers' beta. |
+| LibGlass-1.0 r7 | `SetSurfaceEnabled` dims the wash and the edge's glow through their gradients; `Glass.SetWash(g, top)` (#47) | A gradient texture ignores `SetAlpha` on Forever (measured on the wash in GlassActionBars and Glass Quest Tracker), so a disabled surface's wash and glow never dimmed, and consumers' `g.wash:SetAlpha` themes did nothing. The wash stays a gradient on purpose: making `SetAlpha` work on it would wake those dormant themes (GlassChat's panels would lose their wash) the day any addon shipped the copy. `SetWash` is the opt-in way to change one. No look change for enabled surfaces (parity passes, no new texture). |
