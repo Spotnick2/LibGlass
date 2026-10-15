@@ -1,8 +1,0 @@
-## Interface: 16001
-## Title: LibGlass Comparison
-## Notes: Isolated clearer-glass material probe. /lgprobe help
-## Author: Spotnick
-## Version: dev
-
-Libs\LibGlass-1.0\LibGlass-1.0.xml
-GlassComparison.lua

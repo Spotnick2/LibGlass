@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: LibGlassProbe
+## Notes: Throwaway probe for LibGlass: the material side by side, and r7's disabled look. A ForeverProbe module: /fp lg
+## Author: Spotnick
+## Version: dev
+## Dependencies: ForeverProbe
+## SavedVariables: LibGlassProbeDB
+
+Libs\LibGlass-1.0\LibGlass-1.0.xml
+LibGlassProbe.lua

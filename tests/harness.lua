@@ -120,3 +120,43 @@ function newHost(w, h)
     f:SetSize(w or 200, h or 40)
     return f
 end
+
+-- ForeverProbe, the host LibGlassProbe depends on, from its checkout
+-- ($FOREVERPROBE, else ..\ForeverProbe), loaded into THIS stub environment
+-- the way the client loads a dependency: its TOC's files, then its
+-- ADDON_LOADED. Nil when there is no checkout (CI without the host's token):
+-- the probe test then skips.
+function foreverProbeRoot()
+    local root = (os.getenv("FOREVERPROBE") or "../ForeverProbe"):gsub("\\", "/"):gsub("/$", "")
+    local toc = io.open(root .. "/ForeverProbe.toc", "rb")
+    if not toc then return nil end
+    toc:close()
+    return root
+end
+
+function loadForeverProbe(root)
+    local files = {}
+    for line in readFile(root .. "/ForeverProbe.toc"):gmatch("[^\r\n]+") do
+        if line:match("%.lua$") and not line:match("^#") then files[#files + 1] = root .. "/" .. line end
+    end
+    for _, file in ipairs(files) do assert(loadfile(file))("ForeverProbe", {}) end
+    WoW.fire("ADDON_LOADED", "ForeverProbe")
+    return ForeverProbe
+end
+
+-- LibGlassProbe as the client loads it: its TOC, with the embedded library's
+-- XML expanded to this checkout's files, each called with (name, ns); then
+-- its ADDON_LOADED. Returns the namespace (ns._test is the seam).
+function loadProbe()
+    local dir = "Tools/LibGlassProbe/"
+    local ns = {}
+    for line in readFile(dir .. "LibGlassProbe.toc"):gmatch("[^\r\n]+") do
+        if line == "Libs\\LibGlass-1.0\\LibGlass-1.0.xml" then
+            loadCopy(copyOf(), "LibGlassProbe")
+        elseif line:match("%.lua$") and not line:match("^#") then
+            assert(loadfile(dir .. line))("LibGlassProbe", ns)
+        end
+    end
+    WoW.fire("ADDON_LOADED", "LibGlassProbe")
+    return ns
+end

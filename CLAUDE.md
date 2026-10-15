@@ -37,6 +37,9 @@ packager clones externals anonymously, so it must stay public). License: MIT.
 - **`Tools\make_textures.py`**: the texture generator (Pillow + numpy).
   **`Tools\deploy.ps1`**: the helper consumers call to copy this checkout into
   `AddOns\<Addon>\Libs\LibGlass-1.0` (preflight: XML, Lua, all textures, LICENSE).
+- **`Tools\LibGlassProbe\`**: the developer probe, a ForeverProbe module (`/fp lg`; read
+  `C:\Projects\WoW\References\PROBES.md` before changing it). It embeds this checkout. It holds
+  the r6 track comparison and the r7 disabled-look check (`/fp steps lg r7`). Never packaged.
 - **`docs\GLASS-MATERIAL.md`**: the material write-up (moved here from GlassUnitFrames). **Any
   change to `LibGlass.lua`, `Tools/make_textures.py` or the material parameters updates it in
   the same commit.**
@@ -124,7 +127,9 @@ These follow `C:\Projects\WoW\References\EMBEDDED-LIBRARIES.md` §5 (it replaced
   `.pkgmeta`: **CurseForge's packager does not honour an external's own ignore list** (measured in
   Priestly's published zip, Priestly #53).
 - **Before tagging:** run the pilot consumer's tests against this checkout
-  (`$env:LIBGLASS`, `pwsh ..\GlassUnitFrames\tests\run.ps1`), and validate in game.
+  (`$env:LIBGLASS`, `pwsh ..\GlassUnitFrames\tests\run.ps1`), and validate in game: the
+  owner's run of the probe (`Tools\LibGlassProbe`) is enough, and its results are read from the
+  SavedVariables files, not pasted.
 - No CHANGELOG file for the library (LibGroupBuffs precedent): the **GitHub Releases are its
   history**, and consumers read them before bumping a pin. The consumers' changelogs carry
   player-facing notes.
@@ -159,6 +164,7 @@ method recorded and checked against the API dump by `test_methods.lua`), `tests\
 & 'C:\Program Files (x86)\Lua\5.1\luac.exe' -p LibGlass.lua         # syntax check; silent on success
 pwsh tests\run.ps1                                                   # luac -p + every tests\test_*.lua
 python Tools\make_textures.py                                        # regenerate Media\*.tga
+pwsh Tools\LibGlassProbe\deploy.ps1                                  # ForeverProbe + this checkout + the probe, into AddOns
 ```
 
 Use the Lua 5.1 toolchain at `C:\Program Files (x86)\Lua\5.1\`, not a newer Lua on `PATH`.

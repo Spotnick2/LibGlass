@@ -161,6 +161,23 @@ function Methods.SetHighlightTexture(b, file, blend)
 end
 function Methods.GetHighlightTexture(b) return b._highlight end
 
+-- Scripts, text and events: what the probe and its host, ForeverProbe, use
+-- (tests/test_probe.lua). The library itself uses none of them.
+function Methods.SetScript(w, name, fn) w._scripts = w._scripts or {}; w._scripts[name] = fn end
+function Methods.GetScript(w, name) return w._scripts and w._scripts[name] end
+function Methods.SetText(w, text) w._text = text end
+function Methods.GetText(w) return w._text end
+function Methods.RegisterEvent(w, event) w._events = w._events or {}; w._events[event] = true; return true end
+function Methods.UnregisterEvent(w, event) if w._events then w._events[event] = nil end end
+
+-- Fire an event at every frame registered for it, in creation order.
+function WoW.fire(event, ...)
+    for _, f in ipairs(WoW.frames) do
+        local onEvent = f._events and f._events[event] and f._scripts and f._scripts.OnEvent
+        if onEvent then onEvent(f, event, ...) end
+    end
+end
+
 --------------------------------------------------------------------------------
 -- Globals
 --------------------------------------------------------------------------------
@@ -191,8 +208,9 @@ WoW.reset()   -- the tests' widgets only
 
 -- Strict globals: any read of an undefined global is an error, except the
 -- globals that are legitimately nil before first assignment: LibStub (the
--- bundled file checks for an earlier copy) and GlassUF (the frozen v3 file).
-local allowNil = { LibStub = true, GlassUF = true }
+-- bundled file checks for an earlier copy), GlassUF (the frozen v3 file) and
+-- LibGlassProbeDB (the probe's SavedVariables, nil on a first load).
+local allowNil = { LibStub = true, GlassUF = true, LibGlassProbeDB = true }
 setmetatable(_G, { __index = function(_, k)
     if allowNil[k] then return nil end
     error("read of undefined global '" .. tostring(k) .. "' (not stubbed: is it in the API dump?)", 2)

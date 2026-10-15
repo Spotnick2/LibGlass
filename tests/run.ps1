@@ -24,13 +24,15 @@ try {
     $xml = (Get-Content "LibGlass-1.0.xml" -Raw) -replace '(?s)<!--.*?-->', ''   # listed in a comment is not loaded
     $xmlFiles = [regex]::Matches($xml, '<Script\s+file="([^"]+)"') | ForEach-Object { $_.Groups[1].Value }
     $testFiles = Get-ChildItem (Join-Path $PSScriptRoot "*.lua") -Recurse | ForEach-Object { $_.FullName }
+    # The probe (never packaged) is checked too.
+    $probeFiles = @(Get-ChildItem (Join-Path $RepoRoot "Tools\LibGlassProbe\*.lua") | ForEach-Object { $_.FullName })
     if (-not (Test-Path $luac)) {
         Write-Host "luac -p SKIPPED: no luac.exe beside $Lua - syntax was NOT checked" -ForegroundColor Yellow
     } else {
-        & $luac -p @xmlFiles @testFiles
+        & $luac -p @xmlFiles @testFiles @probeFiles
         if ($LASTEXITCODE -ne 0) { Write-Host "luac -p FAILED" -ForegroundColor Red; exit 1 }
         Remove-Item -LiteralPath "luac.out" -ErrorAction SilentlyContinue
-        Write-Host "luac -p: ok ($($xmlFiles.Count) library files + $($testFiles.Count) test files)" -ForegroundColor DarkGray
+        Write-Host "luac -p: ok ($($xmlFiles.Count) library files + $($testFiles.Count) test files + $($probeFiles.Count) probe file)" -ForegroundColor DarkGray
     }
 
     $failed = 0

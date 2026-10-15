@@ -147,7 +147,7 @@ small).
 ### Opt-in clean material (r6)
 
 `LibStub("LibGlass-1.0"):New({ preset = "clean", bodyAlpha = 0.24 })` selects
-the treatment explored in Tools/GlassComparison. The preset overrides only:
+the treatment explored in Tools/GlassComparison (now `Tools/LibGlassProbe`, `/fp lg show`). The preset overrides only:
 
 | STYLE field | Clean | Original default |
 |---|---|---|
@@ -441,8 +441,11 @@ library.
   Glass Quest Tracker; porting guide §3): after `SetAlpha(0)` it kept drawing and `GetAlpha()`
   still read 1. The wash, the edge's glow and a bar's frost and inner shade are
   `SetColorTexture` + `SetGradient`, so their alpha lives in the gradient: change a wash with
-  `SetWash`, a glow with `SetEdge`. Whether a `SetAlpha` made *before* `SetGradient` survives is
-  unmeasured (the bar fill does that every repaint, and fill 0.60 was tuned live in game).
+  `SetWash`, a glow with `SetEdge`. **Order and texture kind don't help** (probe, 2026-10-15,
+  70374): `SetAlpha(0.2)` before or after `SetGradient`, on a colour or a file texture, drew as
+  bright as no `SetAlpha` at all, and `GetAlpha()` read 1 on each. So the bar fill's `fillAlpha`
+  (a `SetAlpha` before its horizontal gradient, in `tintTrack`) and `SetFillAlpha` (one after it)
+  are probably ignored on any bar with a colour. This is unchecked on a bar; there's a follow-up issue.
 - **Slice margins vs. frame size.** A frame smaller than twice the slice margin still rendered
   in testing, but the corners get squeezed. Use the `small` set below ~40px tall.
 - **Sliced masks fail on boxes small in BOTH directions.** Measured in a sibling glass addon on
@@ -491,4 +494,4 @@ library.
 | LibGlass-1.0 r4 | `STYLE.disabledAlpha` 0.4 → 0.25 (#24) | r3's disabled look was subtle at button size in Time Is Money: the grey label carried most of the signal. A default change, so it reaches instances made by r4 or later, and r1/r2 instances an r4 copy fills first; an instance that already has the key (made by r3, or filled by an r3 copy) keeps 0.4, so with r3 and r4 copies installed the result can depend on load order (the stated limitation of narrow migration). **Not yet checked in game.** |
 | LibGlass-1.0 r5 | `Glass.Pill(button, opts?)` and `Glass.RelevelPill(pill)` (#31): the small glass button behind a symbol, from GlassChat's `Buttons.Style` and AltStable's portrait toggle | No look change for anything built before: a new builder on top of `Apply` (parity passes, no new texture). Same result as the consumers' hand recipe (`tests/test_material.lua` compares them). **Checked in game** (2026-10-09): AltStable's portrait toggle, built with `Pill`, beside GlassChat's hand-built buttons (friends, voice, chat menu) matches them: same body and rim, the gold camera over the rim, no shadow on the neighbours. The hover highlight wasn't part of the check. |
 | LibGlass-1.0 r6 | The opt-in clean preset, `New({ preset = "clean" })`, and an independent body opacity, `bodyAlpha` (#41): thin rims, no grain, softer bars and shadow, neutral empty tracks | No default changes (parity passes, no new runtime texture). **Checked in game** (2026-10-13) with the probe (`Tools/GlassComparison`): clear (0.24) and smoked bodies match the earlier hand recipe, and the neutral track makes remaining health clearer at low fill. Clean discs and Pills weren't part of the check; they are left to the consumers' beta. |
-| LibGlass-1.0 r7 | `SetSurfaceEnabled` dims the wash and the edge's glow through their gradients; `Glass.SetWash(g, top)` (#47) | A gradient texture ignores `SetAlpha` on Forever (measured on the wash in GlassActionBars and Glass Quest Tracker), so a disabled surface's wash and glow never dimmed, and consumers' `g.wash:SetAlpha` themes did nothing. The wash stays a gradient on purpose: making `SetAlpha` work on it would wake those dormant themes (GlassChat's panels would lose their wash) the day any addon shipped the copy. `SetWash` is the opt-in way to change one. No look change for enabled surfaces (parity passes, no new texture). |
+| LibGlass-1.0 r7 | `SetSurfaceEnabled` dims the wash and the edge's glow through their gradients; `Glass.SetWash(g, top)` (#47) | A gradient texture ignores `SetAlpha` on Forever (measured on the wash in GlassActionBars and Glass Quest Tracker), so a disabled surface's wash and glow never dimmed, and consumers' `g.wash:SetAlpha` themes did nothing. The wash stays a gradient on purpose: making `SetAlpha` work on it would wake those dormant themes (GlassChat's panels would lose their wash) the day any addon shipped the copy. `SetWash` is the opt-in way to change one. No look change for enabled surfaces (parity passes, no new texture). **Checked in game** (2026-10-15, 70374, UI scale 0.64) with the probe's guided procedure (`/fp steps lg r7`, #50), classic and clean, large and small. In the owner's screenshots, a disabled surface's wash is clearly fainter at 0.6 and subtly fainter at the default 0.18. `SetWash(0)` hides it. A disabled surface's top line and strong glow are dimmed; enabling makes the pair match again; a wash set while disabled stays dimmed. The difference holds over scenery and a night sky. At the default edge (0.45) the glow itself is too faint to judge. |
