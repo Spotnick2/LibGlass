@@ -142,7 +142,8 @@ eq(calls(R.strip[1].tex, "SetAlpha,SetGradient"), "SetAlpha,SetGradient", "in th
 eq(R.strip[2].tex._file, "Interface\\Buttons\\WHITE8X8", "B: a file texture")
 eq(R.strip[3].tex._alpha, nil, "C: no SetAlpha")
 eq(calls(R.strip[4].tex, "SetAlpha,SetGradient"), "SetGradient,SetAlpha", "D: SetAlpha after")
-check(rec.results[19].detail:find("A GetAlpha 0.2", 1, true), "the GetAlpha readings are recorded")
+check(rec.results[19].detail:find("A GetAlpha 1; B GetAlpha 1", 1, true),
+      "the GetAlpha readings are recorded (1 on a gradient texture, as measured)")
 S.Answer(true); S.Answer(false); S.Answer(true)
 S.Next()   -- 23
 eq(rec.status, "done", "the procedure finishes")
@@ -229,10 +230,11 @@ check(prec and prec.status == "active", "/fp steps lg preview starts it")
 S.Run(); shoot()   -- 1: the board
 local P = T.P
 check(P.root and P.root:IsShown(), "the preview board")
-eq(#P.bars, 4, "classic and clean, today and 0.6")
+eq(#P.bars, 4, "classic and clean, fill 1.0 and 0.6")
 local function fillA(i) return P.bars[i].bar:GetStatusBarTexture()._gradient[2].a end
-eq(fillA(1), 1, "left: today's colour alpha (opaque)")
-near(fillA(2), 0.6, "right: 0.6 in the gradient, as the fix would paint it")
+eq(fillA(1), 1, "left: fill 1.0, opaque")
+near(fillA(2), 0.6, "right: fill 0.6, drawn in the gradient (r8)")
+eq(P.bars[4].glass.STYLE.thinRim, true, "the second row is clean")
 eq(P.bars[1].bar._value, 100, "full health first")
 S.Run(); shoot()   -- 2: 30%
 eq(P.bars[3].bar._value, 30, "then 30%")

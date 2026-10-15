@@ -128,7 +128,10 @@ function Methods.Play(ag) ag._plays = (ag._plays or 0) + 1 end
 function Methods.Stop(ag) ag._stops = (ag._stops or 0) + 1 end
 function Methods.SetTexture(t, file) t._file = file; return true end
 function Methods.SetAlpha(w, a) w._alpha = a end
-function Methods.GetAlpha(w) return w._alpha or 1 end
+-- A texture with a gradient ignores SetAlpha, before or after, and GetAlpha
+-- reads 1 on it (measured on 70374, #47, #53): its alpha is its gradient's.
+-- _alpha still records what was asked for.
+function Methods.GetAlpha(w) if w._gradient then return 1 end return w._alpha or 1 end
 function Methods.SetVertexColor(t, r, g, b, a) t._vertex = { r, g, b, a } end
 function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a } end
 function Methods.AddMaskTexture(t, m) t._masks = t._masks or {}; table.insert(t._masks, m) end

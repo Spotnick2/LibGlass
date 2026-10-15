@@ -534,9 +534,9 @@ Probe:Steps("fill", {
 })
 
 --------------------------------------------------------------------------------
--- preview (#53): the designed look beside today's. A coloured fill draws at
--- its colour's alpha (the gradient's), so passing 0.6 as the colour's alpha
--- shows exactly what moving fillAlpha into the gradient would draw.
+-- preview (#53): an opaque fill (fillAlpha 1.0, what every coloured bar drew
+-- until r7) beside the default 0.6, which r8 draws in the fill's gradient.
+-- On an r7 or older copy both draw opaque: the board names the running MINOR.
 --------------------------------------------------------------------------------
 
 P = { bars = {} }
@@ -555,25 +555,26 @@ local function buildPreview()
     local lib = LibStub("LibGlass-1.0")
     local text = lib:New()
     P.bars = {}
-    P.root = board(text, 640, 300, "LibGlass #53: today's fill beside 0.6",
-        "Left: today (opaque). Right: fill at 0.6, as designed. /fp steps lg preview walks it")
-    local rows = { { key = "classic", glass = lib:New() }, { key = "clean", glass = lib:New({ preset = "clean" }) } }
+    P.root = board(text, 640, 300, "LibGlass #53: fill 1.0 beside 0.6",
+        "Left: fill 1.0 (opaque, as before r8). Right: fill 0.6, the default. /fp steps lg preview")
+    local rows = { { key = "classic", style = {} }, { key = "clean", preset = "clean", style = {} } }
     for r, row in ipairs(rows) do
         local y = -84 - (r - 1) * 104
         for c, alpha in ipairs({ 1, 0.6 }) do
             local x = 20 + (c - 1) * 310
-            label(text, P.root, row.key .. (alpha == 1 and ", today (opaque)" or ", fill 0.6"), 12, x, y)
+            local glass = lib:New({ preset = row.preset, style = { fillAlpha = alpha } })
+            label(text, P.root, row.key .. (alpha == 1 and ", fill 1.0 (opaque)" or ", fill 0.6"), 12, x, y)
             local host = CreateFrame("Frame", nil, P.root)
             host:SetSize(290, 64)
             host:SetPoint("TOPLEFT", P.root, "TOPLEFT", x, y - 18)
-            local g = row.glass.Apply(host, "large")
+            local g = glass.Apply(host, "large")
             label(text, g.top, "Sample unit", 13, 12, -8)
-            local bar = row.glass.Bar(host, 22)
+            local bar = glass.Bar(host, 22)
             bar:SetPoint("TOPLEFT", host, "TOPLEFT", 12, -30)
             bar:SetWidth(266)
             bar:SetFrameLevel(text.ContentLevel(host))
-            bar:SetStatusBarColor(GREEN[1], GREEN[2], GREEN[3], alpha)
-            P.bars[#P.bars + 1] = { bar = bar, glass = row.glass, text = label(text, g.top, "", 12, 120, -34) }
+            bar:SetStatusBarColor(GREEN[1], GREEN[2], GREEN[3])
+            P.bars[#P.bars + 1] = { bar = bar, glass = glass, text = label(text, g.top, "", 12, 120, -34) }
         end
     end
     P.root:Show()
@@ -588,18 +589,18 @@ Probe:Command("preview", function(args)
     if args ~= "" and (not v or v < 0 or v > 100) then say("preview, or preview 0..100 for the health") return end
     if not P.root or not v then buildPreview() end
     if v then setPreviewValue(v) end
-end, "the #53 preview: today's opaque fill beside the designed 0.6 (preview 0..100 sets the health)")
+end, "the #53 preview: fill 1.0 (opaque) beside the default 0.6 (preview 0..100 sets the health)")
 
 Probe:Steps("preview", {
-    title = "LibGlass #53: today's fill beside 0.6",
-    rev = 1,
-    { text = "Open the preview. In each row, the left bar is today's (opaque) and the right one is fill 0.6, as designed. Move the camera so something detailed is behind it.",
+    title = "LibGlass #53: fill 1.0 beside 0.6",
+    rev = 2,
+    { text = "Open the preview. In each row, the left bar is fill 1.0 (opaque, every bar before r8) and the right one fill 0.6, the default. Move the camera so something detailed is behind it.",
       button = "Show preview", run = buildPreview, screenshot = "preview: full health" },
     { text = "Low health: 30%.", button = "Health 30",
       run = function() needPreview(); return setPreviewValue(30) end, screenshot = "preview: 30%" },
     { text = "Very low: 5%.", button = "Health 5",
       run = function() needPreview(); return setPreviewValue(5) end, screenshot = "preview: 5%" },
-    { text = "Do you prefer the 0.6 bars (right) to today's (left)? Say why in a note, even a few words.", ask = true },
+    { text = "Do you prefer the 0.6 bars (right) to the opaque ones (left)? Say why in a note, even a few words.", ask = true },
     { text = "Press Finish, then type /reload so the answer and screenshots are saved. (/fp lg preview reopens it any time.)" },
 })
 
