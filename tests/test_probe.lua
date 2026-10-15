@@ -162,6 +162,55 @@ fp("lg hide")
 check(not R.root:IsShown() and not C.root:IsShown(), "lg hide closes both boards")
 
 ------------------------------------------------------------------------------
+-- The #53 fill procedure, end to end
+------------------------------------------------------------------------------
+fp("steps lg fill")
+local frec = ForeverProbeDB.steps.records["LibGlassProbe/fill"]
+check(frec and frec.status == "active", "/fp steps lg fill starts the procedure")
+eq(frec.results[1].status, "done", "step 1 (which copy) runs on arrival")
+S.Run()   -- 2: the board
+local F = T.F
+check(F.root and F.root:IsShown(), "the fill board")
+eq(#F.rows, 4, "four bars")
+local function fillOf(i) return F.rows[i].bar:GetStatusBarTexture() end
+eq(fillOf(1)._alpha, 0.2, "row 1: the 0.2 instance's fill")
+eq(fillOf(2)._alpha, 0.6, "row 2: the default")
+eq(fillOf(3)._alpha, 1, "row 3: 1.0")
+check(F.rows[1].bar.trackColor and fillOf(1)._gradient, "rows 1-3 are coloured, so their fill has a gradient")
+check(not F.rows[4].bar.trackColor and not fillOf(4)._gradient, "row 4 has no colour and no gradient yet")
+eq(fillOf(4)._alpha, 0.2, "but its fill alpha is set")
+check(frec.results[2].detail:find("4 fillAlpha 0.2 GetAlpha 0.2 no colour", 1, true), "the step records each fill")
+S.Answer(true); S.Answer(true)
+S.Run()   -- 5: colour row 4
+check(F.rows[4].bar.trackColor and fillOf(4)._gradient, "row 4 coloured: now a gradient too")
+S.Answer(true)
+S.Run()   -- 7: SetFillAlpha 1
+check(fillOf(1)._alpha == 1 and fillOf(4)._alpha == 1, "SetFillAlpha reaches rows 1 and 4")
+eq(fillOf(2)._alpha, 0.6, "and not the other instances' bars")
+S.Run()   -- 8: back to 0.2
+eq(fillOf(1)._alpha, 0.2, "back to 0.2")
+S.Answer(false)
+S.Run()   -- 10: colour alpha 0.3 on row 3
+near(fillOf(3)._gradient[2].a, 0.3, "row 3's colour alpha goes into its gradient")
+S.Answer(true)
+S.Run()   -- 12: the timer
+check(logHas("fill: no SetTimerDuration on this client"), "without the client's timer API, the step says so")
+S.Answer(false)
+S.Next()   -- 14
+eq(frec.status, "done", "the fill procedure finishes")
+for i = 1, frec.count do
+    local r = frec.results[i]
+    check(r and (r.status == "done" or r.status == "yes" or r.status == "no") and not r.errors,
+          "fill step " .. i .. " completed without an error")
+end
+local old = F.root
+fp("lg fill")
+check(not old:IsShown() and F.root ~= old and F.root:IsShown(), "lg fill replaces the board")
+eq(fillOf(1)._alpha, 0.2, "with fresh instances")
+fp("lg hide")
+check(not F.root:IsShown(), "lg hide closes it too")
+
+------------------------------------------------------------------------------
 -- Nothing went wrong, nothing went to chat, the log clears in place
 ------------------------------------------------------------------------------
 eq(logCount("ERROR"), 0, "no command or step logged an error")
