@@ -128,7 +128,10 @@ function Methods.Play(ag) ag._plays = (ag._plays or 0) + 1 end
 function Methods.Stop(ag) ag._stops = (ag._stops or 0) + 1 end
 function Methods.SetTexture(t, file) t._file = file; return true end
 function Methods.SetAlpha(w, a) w._alpha = a end
-function Methods.GetAlpha(w) return w._alpha or 1 end
+-- A texture with a gradient ignores SetAlpha, before or after, and GetAlpha
+-- reads 1 on it (measured on 70374, #47, #53): its alpha is its gradient's.
+-- _alpha still records what was asked for.
+function Methods.GetAlpha(w) if w._gradient then return 1 end return w._alpha or 1 end
 function Methods.SetVertexColor(t, r, g, b, a) t._vertex = { r, g, b, a } end
 function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a } end
 function Methods.AddMaskTexture(t, m) t._masks = t._masks or {}; table.insert(t._masks, m) end
@@ -169,6 +172,14 @@ function Methods.SetText(w, text) w._text = text end
 function Methods.GetText(w) return w._text end
 function Methods.RegisterEvent(w, event) w._events = w._events or {}; w._events[event] = true; return true end
 function Methods.UnregisterEvent(w, event) if w._events then w._events[event] = nil end end
+
+-- One rendered frame: every OnUpdate script runs.
+function WoW.tick(elapsed)
+    for _, f in ipairs(WoW.frames) do
+        local onUpdate = f._scripts and f._scripts.OnUpdate
+        if onUpdate then onUpdate(f, elapsed or 0.016) end
+    end
+end
 
 -- Fire an event at every frame registered for it, in creation order.
 function WoW.fire(event, ...)

@@ -32,7 +32,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 7
+local MAJOR, MINOR = "LibGlass-1.0", 8
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -276,18 +276,29 @@ local function paintSharedEdge(inst, e)
     paintEdge(e, a, a * E.glow, a * E.bottom, E.glowh)
 end
 
--- Re-applied after every colour change: the fill (optionally) fades from its
--- colour to STYLE.fillEnd at its moving edge (the gradient spans the fill
--- quad) and keeps STYLE.fillAlpha; the track takes the bar's colour at
--- STYLE.trackTop over its horizontal ramp. No arithmetic on the colour
--- beyond the caller's own (plain) alpha. The bar's own instance's STYLE.
+-- The fill: the bar's colour at STYLE.fillAlpha, (optionally) fading to
+-- STYLE.fillEnd at its moving edge (the gradient spans the fill quad). A
+-- gradient texture ignores SetAlpha, before or after (measured, #53), so the
+-- fill's opacity is in its gradient (r8; until r7 every coloured fill drew
+-- opaque). SetAlpha stays for a fill with no gradient: before its first
+-- colour, or if SetGradient fails. No arithmetic on the colour beyond the
+-- caller's own (plain) alpha. The bar's own instance's STYLE.
+local function paintFill(inst, bar)
+    local c, st = bar.trackColor, inst.STYLE
+    local fill = bar:GetStatusBarTexture()
+    fill:SetAlpha(st.fillAlpha)
+    if not c then return end
+    local a = c[4] * st.fillAlpha
+    pcall(fill.SetGradient, fill, "HORIZONTAL",
+        CreateColor(c[1], c[2], c[3], a), CreateColor(c[1], c[2], c[3], a * st.fillEnd))
+end
+
+-- Re-applied after every colour change: the fill, and the track in the bar's
+-- colour at STYLE.trackTop over its horizontal ramp.
 local function tintTrack(inst, bar)
     local c, st = bar.trackColor, inst.STYLE
     if not c then return end
-    local fill = bar:GetStatusBarTexture()
-    fill:SetAlpha(st.fillAlpha)   -- a client visual reset (SetTimerDuration) must not leave it opaque
-    pcall(fill.SetGradient, fill, "HORIZONTAL",
-        CreateColor(c[1], c[2], c[3], c[4]), CreateColor(c[1], c[2], c[3], c[4] * st.fillEnd))
+    paintFill(inst, bar)
     if bar.track then   -- a bar from older code may lack it
         pcall(bar.track.SetVertexColor, bar.track, c[1], c[2], c[3], st.trackTop)
     end
@@ -758,11 +769,12 @@ function lib.impl.SetRimAlpha(inst, a)
     return true
 end
 
--- Live-tune the bar fill opacity on every glass bar built so far.
+-- Live-tune the bar fill opacity on every glass bar built so far: through
+-- the fill's gradient (r8, #53), and its alpha for a bar with no colour yet.
 function lib.impl.SetFillAlpha(inst, a)
     if not inRange(a, 0.2, 1) then return false end
     inst.STYLE.fillAlpha = a
-    for _, bar in ipairs(inst._bars) do bar:GetStatusBarTexture():SetAlpha(a) end
+    for _, bar in ipairs(inst._bars) do paintFill(inst, bar) end
     return true
 end
 

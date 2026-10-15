@@ -124,14 +124,19 @@ end
 -- ForeverProbe, the host LibGlassProbe depends on, from its checkout
 -- ($FOREVERPROBE, else ..\ForeverProbe), loaded into THIS stub environment
 -- the way the client loads a dependency: its TOC's files, then its
--- ADDON_LOADED. Nil when there is no checkout (CI without the host's token):
--- the probe test then skips.
-function foreverProbeRoot()
+-- ADDON_LOADED. The host is private and lives on the owner's disk, so probe
+-- tests run locally (ForeverProbe guide, section 8): a missing checkout is an
+-- error, except with FOREVERPROBE_OPTIONAL=1 (CI), where `name` prints a
+-- SKIPPED line and exits cleanly.
+function foreverProbeRoot(name)
     local root = (os.getenv("FOREVERPROBE") or "../ForeverProbe"):gsub("\\", "/"):gsub("/$", "")
     local toc = io.open(root .. "/ForeverProbe.toc", "rb")
-    if not toc then return nil end
-    toc:close()
-    return root
+    if toc then toc:close(); return root end
+    if os.getenv("FOREVERPROBE_OPTIONAL") == "1" then
+        io.write(name .. ": SKIPPED (no ForeverProbe checkout; probe tests run locally)\n")
+        os.exit(0)
+    end
+    error("ForeverProbe checkout not found at " .. root .. ": clone it there or set FOREVERPROBE", 0)
 end
 
 function loadForeverProbe(root)

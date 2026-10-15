@@ -188,6 +188,8 @@ end, "0..100: the sample bars' fake health")
 --------------------------------------------------------------------------------
 
 local R = { surfaces = {}, strip = {} }
+local F = { rows = {} }   -- the #53 fill board (below)
+local P                   -- the #53 preview board (below)
 
 -- One line per surface: the wash's painted peak (what the gradient was given)
 -- and whether it is shown. The library records the peak as glassPeak and the
@@ -364,7 +366,9 @@ Probe:Command("backdrop", function(args) setBackdrop(args:lower() ~= "off") end,
 Probe:Command("hide", function()
     if C.root then C.root:Hide() end
     if R.root then R.root:Hide() end
-end, "close both boards")
+    if F.root then F.root:Hide() end
+    if P.root then P.root:Hide() end
+end, "close every board")
 Probe:Command("clear", function() Probe:ClearLog(); say("log cleared") end, "empty the saved log")
 
 -- The r7 check (#50): what tagging r7 waits on. Each look is a run step, then
@@ -409,6 +413,197 @@ Probe:Steps("r7", {
     { text = "That's all. Press Finish, then type /reload so the results are saved to disk." },
 })
 
+--------------------------------------------------------------------------------
+-- fill (#53): is a bar's fill opacity (STYLE.fillAlpha, SetFillAlpha) drawn?
+-- The library sets it with SetAlpha, then paints the fill's horizontal
+-- gradient; the r7 run measured that SetAlpha does nothing on a gradient
+-- texture, in either order. Each bar sits on black and white stripes: a
+-- see-through fill shows them, an opaque one hides them.
+--------------------------------------------------------------------------------
+
+local GREEN = { 0.22, 0.72, 0.42 }
+
+local function fillState()
+    local parts = {}
+    for _, row in ipairs(F.rows) do
+        local fill = row.bar:GetStatusBarTexture()
+        local ok, a = Probe:Try("GetAlpha " .. row.key, fill.GetAlpha, fill)
+        parts[#parts + 1] = row.key .. " fillAlpha " .. Probe.Show(row.glass.STYLE.fillAlpha)
+            .. " GetAlpha " .. Probe.Show(ok and a) .. (row.bar.trackColor and "" or " no colour")
+    end
+    local line = table.concat(parts, "; ")
+    say("fill: " .. line)
+    return line
+end
+
+local function stripes(host, w, h)
+    local n = 12
+    for i = 0, n - 1 do
+        local t = host:CreateTexture(nil, "BACKGROUND")
+        t:SetSize(w / n, h)
+        t:SetPoint("TOPLEFT", host, "TOPLEFT", i * w / n, 0)
+        if i % 2 == 0 then t:SetColorTexture(0.95, 0.95, 0.95, 1) else t:SetColorTexture(0, 0, 0, 1) end
+    end
+end
+
+-- Built fresh each time: new instances, so SetFillAlpha starts from the values below.
+local function buildFill()
+    if F.root then F.root:Hide() end
+    local lib = LibStub("LibGlass-1.0")
+    local text = lib:New()
+    local lo, def, hi = lib:New({ style = { fillAlpha = 0.2 } }), lib:New(), lib:New({ style = { fillAlpha = 1 } })
+    F.lo, F.hi, F.rows = lo, hi, {}
+    F.root = board(text, 660, 400, "LibGlass #53: bar fill opacity",
+        "Stripes behind each bar: see-through fill shows them. /fp steps lg fill walks it")
+    local specs = {
+        { key = "1", glass = lo, label = "1  fillAlpha 0.2, coloured", colour = true },
+        { key = "2", glass = def, label = "2  fillAlpha 0.6 (default), coloured", colour = true },
+        { key = "3", glass = hi, label = "3  fillAlpha 1.0, coloured", colour = true },
+        { key = "4", glass = lo, label = "4  fillAlpha 0.2, no colour yet", colour = false },
+    }
+    for i, spec in ipairs(specs) do
+        local y = -88 - (i - 1) * 74
+        label(text, F.root, spec.label, 13, 20, y)
+        local host = CreateFrame("Frame", nil, F.root)
+        host:SetSize(300, 30)
+        host:SetPoint("TOPLEFT", F.root, "TOPLEFT", 330, y + 6)
+        stripes(host, 300, 30)
+        local bar = spec.glass.Bar(host, 22)
+        bar:SetPoint("TOPLEFT", host, "TOPLEFT", 0, -4)
+        bar:SetWidth(300)
+        if spec.colour then bar:SetStatusBarColor(GREEN[1], GREEN[2], GREEN[3]) end
+        spec.glass.SetBar(bar, 100, 60, true)
+        F.rows[i] = { key = spec.key, glass = spec.glass, bar = bar }
+    end
+    F.root:Show()
+    say("fill board on LibGlass r" .. tostring(minor()))
+    return fillState()
+end
+
+local function needFill() if not F.root then buildFill() end; F.root:Show() end
+
+-- The client's own timer on a bar (GlassUnitFrames' cast bars use it): the
+-- "visual reset" tintTrack's comment says left a fill opaque.
+local function startTimer()
+    needFill()
+    local du = rawget(_G, "C_DurationUtil")
+    local bar = F.rows[1].bar
+    if not (du and du.CreateDuration and bar.SetTimerDuration) then
+        say("fill: no SetTimerDuration on this client")
+        return "no timer"
+    end
+    local okD, d = Probe:Try("CreateDuration", du.CreateDuration)
+    if not okD or not d then return "no duration" end
+    local getTime = rawget(_G, "GetTime")
+    Probe:Try("SetTimeFromStart", d.SetTimeFromStart, d, getTime and getTime() or 0, 20)
+    Probe:Try("SetTimerDuration", bar.SetTimerDuration, bar, d)
+    return fillState()
+end
+
+Probe:Command("fill", function() buildFill() end, "the #53 fill-opacity board, built fresh (/fp steps lg fill walks it)")
+
+Probe:Steps("fill", {
+    title = "LibGlass #53: bar fill opacity",
+    rev = 1,
+    { text = "Checking which copy of LibGlass is running.", auto = true, run = report },
+    { text = "Open the board. Four bars over black and white stripes: where the fill is see-through, the stripes show through the green. Drag the board so this panel doesn't cover it.",
+      button = "Show board", run = buildFill, screenshot = "fill: the board" },
+    { text = "Rows 1, 2 and 3 are coloured bars at fill 0.2, 0.6 and 1.0. Do the stripes show through the green differently in each? (All three the same means the fill opacity isn't drawn.)",
+      ask = true },
+    { text = "Row 4 is fill 0.2 too, but has no colour yet (no gradient). Do the stripes show through its fill more than through row 1's?",
+      ask = true },
+    { text = "Give row 4 the same green as the others.", button = "Colour row 4",
+      run = function() needFill(); F.rows[4].bar:SetStatusBarColor(GREEN[1], GREEN[2], GREEN[3]); return fillState() end,
+      screenshot = "fill: row 4 coloured" },
+    { text = "Did row 4's fill change when it got its colour (the stripes covered up)?", ask = true },
+    { text = "Raise fill 0.2 to 1.0 with SetFillAlpha (rows 1 and 4).", button = "SetFillAlpha 1",
+      run = function() needFill(); F.lo.SetFillAlpha(1); return fillState() end, screenshot = "fill: SetFillAlpha 1" },
+    { text = "And back to 0.2.", button = "SetFillAlpha 0.2",
+      run = function() needFill(); F.lo.SetFillAlpha(0.2); return fillState() end, screenshot = "fill: SetFillAlpha 0.2" },
+    { text = "Between those two, did rows 1 and 4 change at all?", ask = true },
+    { text = "Give row 3 (fill 1.0) a colour whose own alpha is 0.3: that alpha goes into the gradient.",
+      button = "Colour alpha 0.3",
+      run = function() needFill(); F.rows[3].bar:SetStatusBarColor(GREEN[1], GREEN[2], GREEN[3], 0.3); return fillState() end,
+      screenshot = "fill: row 3 colour alpha 0.3" },
+    { text = "Did row 3 turn see-through (the stripes showing)?", ask = true },
+    { text = "Start the client's own timer on row 1 (SetTimerDuration, 20 s).", button = "Start timer",
+      run = startTimer, screenshot = "fill: row 1 timer" },
+    { text = "Did row 1 look different once its timer started (more solid, less, or no change)? Say which in a note.",
+      ask = true },
+    { text = "That's all. Press Finish, then type /reload so the results and screenshots are saved." },
+})
+
+--------------------------------------------------------------------------------
+-- preview (#53): an opaque fill (fillAlpha 1.0, what every coloured bar drew
+-- until r7) beside the default 0.6, which r8 draws in the fill's gradient.
+-- On an r7 or older copy both draw opaque: the board names the running MINOR.
+--------------------------------------------------------------------------------
+
+P = { bars = {} }
+
+local function setPreviewValue(v)
+    for _, b in ipairs(P.bars) do
+        b.glass.SetBar(b.bar, 100, v, true)
+        b.text:SetText(v .. " / 100")
+    end
+    say("preview: health " .. v .. "%")
+    return v
+end
+
+local function buildPreview()
+    if P.root then P.root:Hide() end
+    local lib = LibStub("LibGlass-1.0")
+    local text = lib:New()
+    P.bars = {}
+    P.root = board(text, 640, 300, "LibGlass #53: fill 1.0 beside 0.6",
+        "Left: fill 1.0 (opaque, as before r8). Right: fill 0.6, the default. /fp steps lg preview")
+    local rows = { { key = "classic", style = {} }, { key = "clean", preset = "clean", style = {} } }
+    for r, row in ipairs(rows) do
+        local y = -84 - (r - 1) * 104
+        for c, alpha in ipairs({ 1, 0.6 }) do
+            local x = 20 + (c - 1) * 310
+            local glass = lib:New({ preset = row.preset, style = { fillAlpha = alpha } })
+            label(text, P.root, row.key .. (alpha == 1 and ", fill 1.0 (opaque)" or ", fill 0.6"), 12, x, y)
+            local host = CreateFrame("Frame", nil, P.root)
+            host:SetSize(290, 64)
+            host:SetPoint("TOPLEFT", P.root, "TOPLEFT", x, y - 18)
+            local g = glass.Apply(host, "large")
+            label(text, g.top, "Sample unit", 13, 12, -8)
+            local bar = glass.Bar(host, 22)
+            bar:SetPoint("TOPLEFT", host, "TOPLEFT", 12, -30)
+            bar:SetWidth(266)
+            bar:SetFrameLevel(text.ContentLevel(host))
+            bar:SetStatusBarColor(GREEN[1], GREEN[2], GREEN[3])
+            P.bars[#P.bars + 1] = { bar = bar, glass = glass, text = label(text, g.top, "", 12, 120, -34) }
+        end
+    end
+    P.root:Show()
+    say("preview board on LibGlass r" .. tostring(minor()))
+    return setPreviewValue(100)
+end
+
+local function needPreview() if not P.root then buildPreview() end; P.root:Show() end
+
+Probe:Command("preview", function(args)
+    local v = tonumber(args)
+    if args ~= "" and (not v or v < 0 or v > 100) then say("preview, or preview 0..100 for the health") return end
+    if not P.root or not v then buildPreview() end
+    if v then setPreviewValue(v) end
+end, "the #53 preview: fill 1.0 (opaque) beside the default 0.6 (preview 0..100 sets the health)")
+
+Probe:Steps("preview", {
+    title = "LibGlass #53: fill 1.0 beside 0.6",
+    rev = 2,
+    { text = "Open the preview. In each row, the left bar is fill 1.0 (opaque, every bar before r8) and the right one fill 0.6, the default. Move the camera so something detailed is behind it.",
+      button = "Show preview", run = buildPreview, screenshot = "preview: full health" },
+    { text = "Low health: 30%.", button = "Health 30",
+      run = function() needPreview(); return setPreviewValue(30) end, screenshot = "preview: 30%" },
+    { text = "Very low: 5%.", button = "Health 5",
+      run = function() needPreview(); return setPreviewValue(5) end, screenshot = "preview: 5%" },
+    { text = "Do you prefer the 0.6 bars (right) to the opaque ones (left)? Say why in a note, even a few words.", ask = true },
+    { text = "Press Finish, then type /reload so the answer and screenshots are saved. (/fp lg preview reopens it any time.)" },
+})
+
 local boot = CreateFrame("Frame")
 Probe:RegisterEvents(boot, { "ADDON_LOADED" })
 boot:SetScript("OnEvent", function(_, _, name)
@@ -424,4 +619,5 @@ end)
 
 NS._test = { Probe = Probe, C = C, R = R, buildR7 = buildR7, setWash = setWash, setDisabled = setDisabled,
              setEdge = setEdge, strongGlow = strongGlow, setBackdrop = setBackdrop, readStrip = readStrip,
-             state = state }
+             state = state, F = F, buildFill = buildFill, fillState = fillState, startTimer = startTimer,
+             P = P, buildPreview = buildPreview }

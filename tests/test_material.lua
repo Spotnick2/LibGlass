@@ -58,14 +58,20 @@ eq(fs._font[2], 14, "at its own size")
 check(not Glass.SetFont("comic"), "unknown font rejected")
 eq(Glass.fontKey, "friz", "and the key kept")
 
--- Translucent bar fill: texture alpha on every glass bar, text untouched.
+-- Translucent bar fill (r8, #53): on Forever a gradient texture ignores
+-- SetAlpha, before or after, so a coloured fill's opacity is drawn in its
+-- gradient. Its alpha is still set, for a fill with no colour (no gradient).
 eq(bar:GetStatusBarTexture()._alpha, 0.6, "bar fill at the default opacity (owner-picked)")
 check(Glass.SetFillAlpha(0.5), "fill accepted")
-eq(bar:GetStatusBarTexture()._alpha, 0.5, "fill retuned live")
+eq(bar:GetStatusBarTexture()._alpha, 0.5, "fill retuned live, on a fill with no colour yet")
 eq(bar2:GetStatusBarTexture()._alpha, 0.5, "on every bar")
 check(fs._alpha == nil or fs._alpha == 1, "text stays opaque")
 bar:SetStatusBarColor(1, 0, 0)
-eq(bar:GetStatusBarTexture()._alpha, 0.5, "recolouring keeps the fill opacity")
+near(bar:GetStatusBarTexture()._gradient[2].a, 0.5, "coloured: the fill opacity is drawn in the gradient")
+eq(bar:GetStatusBarTexture():GetAlpha(), 1, "(GetAlpha reads 1 on a gradient texture, as in game)")
+check(Glass.SetFillAlpha(0.8), "fill retuned again")
+near(bar:GetStatusBarTexture()._gradient[2].a, 0.8, "SetFillAlpha repaints a coloured fill's gradient")
+check(Glass.SetFillAlpha(0.5), "and back")
 local vc = bar.track._vertex
 eq(bar.track._file, MEDIA .. "track_fade", "missing health: the fading ramp")
 check(vc and vc[1] == 1 and vc[2] == 0 and vc[4] == 0.75, "tinted with the bar's own colour")
@@ -82,10 +88,10 @@ check(Glass.SetTrackAlpha(0.8), "track accepted")
 eq(bar.track._vertex[4], 0.8, "track retuned live")
 eq(bar.track._vertex[1], 1, "track keeps the bar colour")
 local fg = bar:GetStatusBarTexture()._gradient
-check(fg and fg[1] == "HORIZONTAL" and fg[2].a == 1 and fg[3].a == 1 and fg[3].r == 1,
-      "fill even by default (fade off), in the bar's colour")
+check(fg and fg[1] == "HORIZONTAL" and math.abs(fg[2].a - 0.5) < 1e-9 and fg[3].a == fg[2].a and fg[3].r == 1,
+      "fill even by default (fade off), in the bar's colour, at the fill opacity")
 check(Glass.SetFillEnd(0.5), "fade accepted")
-eq(bar:GetStatusBarTexture()._gradient[3].a, 0.5, "fade retuned live")
+near(bar:GetStatusBarTexture()._gradient[3].a, 0.25, "fade retuned live (the fill opacity times the fade)")
 
 -- The track only shows past the fill: its clip starts at the fill's moving
 -- edge, so a full bar stays even and the ramp never sits under the fill.
@@ -110,7 +116,7 @@ bar:SetStatusBarColor(0, 1, 0)
 eq(fillTex._alpha, 0.5, "fill opacity re-applied after a reset")
 -- A caller's alpha is honoured by the fill gradient.
 bar:SetStatusBarColor(0, 1, 0, 0.5)
-eq(fillTex._gradient[2].a, 0.5, "SetStatusBarColor's alpha kept")
+near(fillTex._gradient[2].a, 0.25, "SetStatusBarColor's alpha kept, times the fill opacity")
 -- The same colour again does no work (painters recolour on every event).
 fillTex._gradient = nil
 bar:SetStatusBarColor(0, 1, 0, 0.5)

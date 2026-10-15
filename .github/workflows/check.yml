@@ -22,26 +22,6 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.1
 
-      # The probe (Tools/LibGlassProbe) is a ForeverProbe module, and
-      # tests/test_probe.lua loads the host at the tag forever-probe.pin names
-      # ($FOREVERPROBE, as locally). The host's repo is private, so the clone
-      # needs the FOREVERPROBE_TOKEN secret (read-only Contents on
-      # ForeverProbe). Without the secret the probe test skips, with a warning
-      # here; with it, a failed clone (a missing tag) fails the check.
-      - name: Fetch ForeverProbe at its pinned tag
-        env:
-          TOKEN: ${{ secrets.FOREVERPROBE_TOKEN }}
-        run: |
-          tag=$(tr -d '\r\n ' < Tools/LibGlassProbe/forever-probe.pin)
-          test -n "$tag" || { echo "Tools/LibGlassProbe/forever-probe.pin is empty"; exit 1; }
-          if [ -z "$TOKEN" ]; then
-            echo "::warning::no FOREVERPROBE_TOKEN secret: test_probe.lua is skipped"
-            exit 0
-          fi
-          git clone --quiet --depth 1 --branch "$tag" \
-            "https://x-access-token:${TOKEN}@github.com/Spotnick2/ForeverProbe.git" "$RUNNER_TEMP/ForeverProbe"
-          echo "FOREVERPROBE=$RUNNER_TEMP/ForeverProbe" >> "$GITHUB_ENV"
-
       # WoW runs Lua 5.1, so the tests do too. tests/run.ps1 is the Windows
       # entry point for the same files.
       - name: Syntax-check the Lua
@@ -52,7 +32,12 @@ jobs:
           find . -name '*.lua' -not -path './.git/*' -print0 | xargs -0 luac5.1 -p
 
       # Without the API dump (local only), test_methods skips the method check.
+      # The probe's test needs ForeverProbe, which is private and lives on the
+      # owner's disk: probe tests run locally (tests/run.ps1), and here
+      # test_probe.lua prints SKIPPED (ForeverProbe guide, section 8).
       - name: Unit tests
+        env:
+          FOREVERPROBE_OPTIONAL: "1"
         run: |
           for f in tests/test_*.lua; do
             echo "-- $f"

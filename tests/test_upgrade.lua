@@ -428,6 +428,9 @@ for _, file in ipairs(RELEASES) do
         bar:SetStatusBarColor(0, 1, 0)
         lib.impl.OnBarColor = orig
         eq(calls, 1, r .. " upgraded: its bar hook runs this copy's body, once")
+        -- r8: the fill's opacity is drawn in its gradient, on a bar an older copy built.
+        check(A.SetFillAlpha(0.5), r .. " upgraded: SetFillAlpha")
+        near(bar:GetStatusBarTexture()._gradient[2].a, 0.5, r .. " upgraded: draws the fill's opacity in its gradient")
         -- r3's per-surface setters reach surfaces an older copy built.
         -- An upgrade keeps an instance's disabledAlpha and fills it only where missing.
         eq(A.STYLE.disabledAlpha, dimBefore or lib.defaults.STYLE.disabledAlpha,
@@ -451,14 +454,21 @@ for _, file in ipairs(RELEASES) do
             eq(gOff.rim._alpha, 0.7, r .. " upgraded: its rim given back")
             check(gOff.edge.glow.glassDim == nil and gOff.edge.glow.glassBase == nil,
                   r .. " upgraded: its custom glow's dim cleared, though r7 has no peak for it")
-            eq(gOff.edge.glow._alpha, 1, r .. " upgraded: and the alpha " .. r .. " lowered given back")
+            if K < 7 then   -- r7 dims the glow through its gradient, never its alpha
+                eq(gOff.edge.glow._alpha, 1, r .. " upgraded: and the alpha " .. r .. " lowered given back")
+            end
             B.SetEdge(gOff, 0.6, 0.2, 0.5)
             near(gOff.edge.glow._gradient[3].a, 0.2, r .. " upgraded: so SetEdge paints it undimmed")
         end
-        -- A custom edge from the older copy, disabled under this one: no peak to
-        -- repaint yet, but the dim is recorded for the next SetEdge.
+        -- A custom edge from the older copy, disabled under this one: before r7
+        -- no peak to repaint yet, but the dim is recorded for the next SetEdge;
+        -- from r7 the peak is known and the glow dims at once.
         B.SetSurfaceEnabled(gCustom, false)
-        near(gCustom.edge.glow._gradient[3].a, 0.2, r .. " upgraded: an unknown peak isn't repainted")
+        if K < 7 then
+            near(gCustom.edge.glow._gradient[3].a, 0.2, r .. " upgraded: an unknown peak isn't repainted")
+        else
+            near(gCustom.edge.glow._gradient[3].a, 0.2 * B.STYLE.disabledAlpha, r .. " upgraded: a known peak dims at once")
+        end
         B.SetEdge(gCustom, 0.6, 0.2, 0.5)
         near(gCustom.edge.glow._gradient[3].a, 0.2 * B.STYLE.disabledAlpha,
              r .. " upgraded: a SetEdge on a custom glow disabled without a peak paints it dimmed")

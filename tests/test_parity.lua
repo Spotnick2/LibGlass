@@ -5,7 +5,12 @@
 -- and every widget each one creates is compared: type, parent, and every
 -- method call in order with its arguments (draw layers, sublevels, colours,
 -- alphas, slice margins, frame levels, the hooks installed). Texture paths
--- are compared below their media folder, which is the one intended change.
+-- are compared below their media folder, an intended change. The other is
+-- the bar fill's opacity (r8, #53): v3 set it with SetAlpha, which a
+-- gradient texture ignores on Forever, so every coloured fill drew opaque;
+-- the library draws it in the gradient. The fill texture's SetAlpha and
+-- SetGradient calls, and getters (they draw nothing), are left out of the
+-- comparison, and the fill is checked on its own at the end.
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
@@ -33,10 +38,15 @@ local function dump()
     local out = {}
     for i, w in ipairs(WoW.widgets) do
         out[#out + 1] = string.format("#%d %s parent=%s", i, w._type, w._parent == UIParent and "UIParent" or w._parent and (index[w._parent] or "?") or "nil")
+        local isFill = w._parent and w._parent._fill == w
         for _, call in ipairs(w._log) do
-            local args = {}
-            for j = 1, call.n do args[j] = arg(call[j + 1]) end
-            out[#out + 1] = "  " .. call[1] .. "(" .. table.concat(args, ", ") .. ")"
+            local name = call[1]
+            local skip = name:match("^Get") or (isFill and (name == "SetAlpha" or name == "SetGradient"))
+            if not skip then
+                local args = {}
+                for j = 1, call.n do args[j] = arg(call[j + 1]) end
+                out[#out + 1] = "  " .. name .. "(" .. table.concat(args, ", ") .. ")"
+            end
         end
     end
     return out
@@ -171,5 +181,13 @@ end
 local bar = nil
 for _, w in ipairs(WoW.widgets) do if w._type == "StatusBar" then bar = w; break end end
 eq(bar:GetStatusBarTexture()._file, LIB_MEDIA .. "bar_fill", "textures come from the embedded library's folder")
+
+-- The fill's opacity, the other intended difference: drawn in its gradient.
+-- The scenario left the first bar at colour (0, 1, 0, 0.5), fillAlpha 0.5 and
+-- fillEnd 0 (the last valid values of the setter loop).
+local fg = bar:GetStatusBarTexture()._gradient
+check(fg and fg[2].g == 1 and fg[3].g == 1, "the fill keeps the bar's colour")
+near(fg[2].a, 0.5 * 0.5, "the fill's opacity: the colour's alpha times fillAlpha, in the gradient")
+eq(fg[3].a, 0, "and the fade on top (fillEnd 0: clear at the edge)")
 
 done("test_parity")
