@@ -189,6 +189,7 @@ end, "0..100: the sample bars' fake health")
 
 local R = { surfaces = {}, strip = {} }
 local F = { rows = {} }   -- the #53 fill board (below)
+local P                   -- the #53 preview board (below)
 
 -- One line per surface: the wash's painted peak (what the gradient was given)
 -- and whether it is shown. The library records the peak as glassPeak and the
@@ -366,6 +367,7 @@ Probe:Command("hide", function()
     if C.root then C.root:Hide() end
     if R.root then R.root:Hide() end
     if F.root then F.root:Hide() end
+    if P.root then P.root:Hide() end
 end, "close every board")
 Probe:Command("clear", function() Probe:ClearLog(); say("log cleared") end, "empty the saved log")
 
@@ -531,6 +533,76 @@ Probe:Steps("fill", {
     { text = "That's all. Press Finish, then type /reload so the results and screenshots are saved." },
 })
 
+--------------------------------------------------------------------------------
+-- preview (#53): the designed look beside today's. A coloured fill draws at
+-- its colour's alpha (the gradient's), so passing 0.6 as the colour's alpha
+-- shows exactly what moving fillAlpha into the gradient would draw.
+--------------------------------------------------------------------------------
+
+P = { bars = {} }
+
+local function setPreviewValue(v)
+    for _, b in ipairs(P.bars) do
+        b.glass.SetBar(b.bar, 100, v, true)
+        b.text:SetText(v .. " / 100")
+    end
+    say("preview: health " .. v .. "%")
+    return v
+end
+
+local function buildPreview()
+    if P.root then P.root:Hide() end
+    local lib = LibStub("LibGlass-1.0")
+    local text = lib:New()
+    P.bars = {}
+    P.root = board(text, 640, 300, "LibGlass #53: today's fill beside 0.6",
+        "Left: today (opaque). Right: fill at 0.6, as designed. /fp steps lg preview walks it")
+    local rows = { { key = "classic", glass = lib:New() }, { key = "clean", glass = lib:New({ preset = "clean" }) } }
+    for r, row in ipairs(rows) do
+        local y = -84 - (r - 1) * 104
+        for c, alpha in ipairs({ 1, 0.6 }) do
+            local x = 20 + (c - 1) * 310
+            label(text, P.root, row.key .. (alpha == 1 and ", today (opaque)" or ", fill 0.6"), 12, x, y)
+            local host = CreateFrame("Frame", nil, P.root)
+            host:SetSize(290, 64)
+            host:SetPoint("TOPLEFT", P.root, "TOPLEFT", x, y - 18)
+            local g = row.glass.Apply(host, "large")
+            label(text, g.top, "Sample unit", 13, 12, -8)
+            local bar = row.glass.Bar(host, 22)
+            bar:SetPoint("TOPLEFT", host, "TOPLEFT", 12, -30)
+            bar:SetWidth(266)
+            bar:SetFrameLevel(text.ContentLevel(host))
+            bar:SetStatusBarColor(GREEN[1], GREEN[2], GREEN[3], alpha)
+            P.bars[#P.bars + 1] = { bar = bar, glass = row.glass, text = label(text, g.top, "", 12, 120, -34) }
+        end
+    end
+    P.root:Show()
+    say("preview board on LibGlass r" .. tostring(minor()))
+    return setPreviewValue(100)
+end
+
+local function needPreview() if not P.root then buildPreview() end; P.root:Show() end
+
+Probe:Command("preview", function(args)
+    local v = tonumber(args)
+    if args ~= "" and (not v or v < 0 or v > 100) then say("preview, or preview 0..100 for the health") return end
+    if not P.root or not v then buildPreview() end
+    if v then setPreviewValue(v) end
+end, "the #53 preview: today's opaque fill beside the designed 0.6 (preview 0..100 sets the health)")
+
+Probe:Steps("preview", {
+    title = "LibGlass #53: today's fill beside 0.6",
+    rev = 1,
+    { text = "Open the preview. In each row, the left bar is today's (opaque) and the right one is fill 0.6, as designed. Move the camera so something detailed is behind it.",
+      button = "Show preview", run = buildPreview, screenshot = "preview: full health" },
+    { text = "Low health: 30%.", button = "Health 30",
+      run = function() needPreview(); return setPreviewValue(30) end, screenshot = "preview: 30%" },
+    { text = "Very low: 5%.", button = "Health 5",
+      run = function() needPreview(); return setPreviewValue(5) end, screenshot = "preview: 5%" },
+    { text = "Do you prefer the 0.6 bars (right) to today's (left)? Say why in a note, even a few words.", ask = true },
+    { text = "Press Finish, then type /reload so the answer and screenshots are saved. (/fp lg preview reopens it any time.)" },
+})
+
 local boot = CreateFrame("Frame")
 Probe:RegisterEvents(boot, { "ADDON_LOADED" })
 boot:SetScript("OnEvent", function(_, _, name)
@@ -546,4 +618,5 @@ end)
 
 NS._test = { Probe = Probe, C = C, R = R, buildR7 = buildR7, setWash = setWash, setDisabled = setDisabled,
              setEdge = setEdge, strongGlow = strongGlow, setBackdrop = setBackdrop, readStrip = readStrip,
-             state = state, F = F, buildFill = buildFill, fillState = fillState, startTimer = startTimer }
+             state = state, F = F, buildFill = buildFill, fillState = fillState, startTimer = startTimer,
+             P = P, buildPreview = buildPreview }

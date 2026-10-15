@@ -4,7 +4,7 @@
     In order, each step stopping the rest if it refuses:
       1. ForeverProbe, the host (..\ForeverProbe, or $env:FOREVERPROBE), with its own deploy;
       2. this LibGlass checkout into AddOns\LibGlassProbe\Libs\LibGlass-1.0 (Tools\deploy.ps1);
-      3. the module's TOC and Lua (not forever-probe.pin or the README).
+      3. the module's TOC and Lua (not the README).
 
     Usage, from the repo root:
         pwsh Tools\LibGlassProbe\deploy.ps1
@@ -50,7 +50,7 @@ if ($LASTEXITCODE -ne 0) { Write-Error "LibGlass deploy refused; LibGlassProbe w
 # 3. The module.
 $dest = Join-Path (Resolve-Path -LiteralPath $AddOnsPath).ProviderPath "LibGlassProbe"
 foreach ($f in $Files) { Copy-Item -LiteralPath (Join-Path $ProbeDir $f) -Destination (Join-Path $dest $f) -Force }
-Write-Host "LibGlassProbe deployed to $dest. /reload, then /fp steps lg r7 (or /fp lg for the commands)." -ForegroundColor Cyan
+Write-Host "LibGlassProbe deployed to $dest. /reload, then /fp steps to list the procedures (or /fp lg for the commands)." -ForegroundColor Cyan
 
 # The probe this replaced: its /lgprobe and its embedded LibGlass would still load.
 $old = Join-Path (Resolve-Path -LiteralPath $AddOnsPath).ProviderPath "GlassComparison"

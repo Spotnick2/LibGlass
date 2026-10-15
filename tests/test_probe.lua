@@ -1,16 +1,24 @@
 -- LibGlassProbe (Tools/LibGlassProbe), a ForeverProbe module: it loads on the
 -- host and this checkout's library, every command runs without an error, its
 -- lines go to its saved log and never to chat, and the r7 procedure (#50)
--- walks end to end, painting what each step says.
--- Needs a ForeverProbe checkout ($FOREVERPROBE, else ..\ForeverProbe); skips
--- without one (CI without the host's token).
+-- walks end to end, painting what each step says; so do the #53 fill and
+-- preview procedures, their step screenshots driven like the client's.
+-- Needs a ForeverProbe checkout ($FOREVERPROBE, else ..\ForeverProbe); in CI
+-- (FOREVERPROBE_OPTIONAL=1) it skips without one.
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
 
-local root = foreverProbeRoot()
-if not root then
-    io.write("test_probe: SKIPPED (no ForeverProbe checkout: set FOREVERPROBE or clone it beside LibGlass)\n")
-    os.exit(0)
+local root = foreverProbeRoot("test_probe")
+
+-- Screenshots: the host shoots from its OnUpdate driver (hide, settle, the
+-- gap between shots), then waits for SCREENSHOT_SUCCEEDED. The test owns the
+-- clock. A step with a screenshot moves on only once its shot is done.
+local clock, shots = 100, 0
+rawset(_G, "GetTime", function() return clock end)
+rawset(_G, "Screenshot", function() shots = shots + 1 end)
+local function shoot()
+    for _ = 1, 8 do clock = clock + 0.5; WoW.tick() end
+    WoW.fire("SCREENSHOT_SUCCEEDED")
 end
 
 -- What the host reads beyond the shared stub (it reads every client API
@@ -168,7 +176,7 @@ fp("steps lg fill")
 local frec = ForeverProbeDB.steps.records["LibGlassProbe/fill"]
 check(frec and frec.status == "active", "/fp steps lg fill starts the procedure")
 eq(frec.results[1].status, "done", "step 1 (which copy) runs on arrival")
-S.Run()   -- 2: the board
+S.Run(); shoot()   -- 2: the board
 local F = T.F
 check(F.root and F.root:IsShown(), "the fill board")
 eq(#F.rows, 4, "four bars")
@@ -181,19 +189,19 @@ check(not F.rows[4].bar.trackColor and not fillOf(4)._gradient, "row 4 has no co
 eq(fillOf(4)._alpha, 0.2, "but its fill alpha is set")
 check(frec.results[2].detail:find("4 fillAlpha 0.2 GetAlpha 0.2 no colour", 1, true), "the step records each fill")
 S.Answer(true); S.Answer(true)
-S.Run()   -- 5: colour row 4
+S.Run(); shoot()   -- 5: colour row 4
 check(F.rows[4].bar.trackColor and fillOf(4)._gradient, "row 4 coloured: now a gradient too")
 S.Answer(true)
-S.Run()   -- 7: SetFillAlpha 1
+S.Run(); shoot()   -- 7: SetFillAlpha 1
 check(fillOf(1)._alpha == 1 and fillOf(4)._alpha == 1, "SetFillAlpha reaches rows 1 and 4")
 eq(fillOf(2)._alpha, 0.6, "and not the other instances' bars")
-S.Run()   -- 8: back to 0.2
+S.Run(); shoot()   -- 8: back to 0.2
 eq(fillOf(1)._alpha, 0.2, "back to 0.2")
 S.Answer(false)
-S.Run()   -- 10: colour alpha 0.3 on row 3
+S.Run(); shoot()   -- 10: colour alpha 0.3 on row 3
 near(fillOf(3)._gradient[2].a, 0.3, "row 3's colour alpha goes into its gradient")
 S.Answer(true)
-S.Run()   -- 12: the timer
+S.Run(); shoot()   -- 12: the timer
 check(logHas("fill: no SetTimerDuration on this client"), "without the client's timer API, the step says so")
 S.Answer(false)
 S.Next()   -- 14
@@ -209,6 +217,38 @@ check(not old:IsShown() and F.root ~= old and F.root:IsShown(), "lg fill replace
 eq(fillOf(1)._alpha, 0.2, "with fresh instances")
 fp("lg hide")
 check(not F.root:IsShown(), "lg hide closes it too")
+
+eq(#frec.results[2].screenshots, 1, "a run step's screenshot is saved on the step")
+
+------------------------------------------------------------------------------
+-- The #53 preview: today's fill beside the designed 0.6
+------------------------------------------------------------------------------
+fp("steps lg preview")
+local prec = ForeverProbeDB.steps.records["LibGlassProbe/preview"]
+check(prec and prec.status == "active", "/fp steps lg preview starts it")
+S.Run(); shoot()   -- 1: the board
+local P = T.P
+check(P.root and P.root:IsShown(), "the preview board")
+eq(#P.bars, 4, "classic and clean, today and 0.6")
+local function fillA(i) return P.bars[i].bar:GetStatusBarTexture()._gradient[2].a end
+eq(fillA(1), 1, "left: today's colour alpha (opaque)")
+near(fillA(2), 0.6, "right: 0.6 in the gradient, as the fix would paint it")
+eq(P.bars[1].bar._value, 100, "full health first")
+S.Run(); shoot()   -- 2: 30%
+eq(P.bars[3].bar._value, 30, "then 30%")
+eq(P.bars[3].text._text, "30 / 100", "with its label")
+S.Run(); shoot()   -- 3: 5%
+eq(P.bars[4].bar._value, 5, "then 5%")
+S.Answer(true)
+S.Next()
+eq(prec.status, "done", "the preview procedure finishes")
+fp("lg preview 50")
+eq(P.bars[2].bar._value, 50, "lg preview 50 sets the health")
+fp("lg preview 101")
+check(logHas("preview, or preview 0..100"), "out of range is refused")
+fp("lg hide")
+check(not P.root:IsShown(), "lg hide closes it too")
+check(shots >= 9, "every screenshot step took its shot (" .. shots .. ")")
 
 ------------------------------------------------------------------------------
 -- Nothing went wrong, nothing went to chat, the log clears in place

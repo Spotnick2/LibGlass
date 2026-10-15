@@ -443,9 +443,14 @@ library.
   `SetColorTexture` + `SetGradient`, so their alpha lives in the gradient: change a wash with
   `SetWash`, a glow with `SetEdge`. **Order and texture kind don't help** (probe, 2026-10-15,
   70374): `SetAlpha(0.2)` before or after `SetGradient`, on a colour or a file texture, drew as
-  bright as no `SetAlpha` at all, and `GetAlpha()` read 1 on each. So the bar fill's `fillAlpha`
-  (a `SetAlpha` before its horizontal gradient, in `tintTrack`) and `SetFillAlpha` (one after it)
-  are probably ignored on any bar with a colour. This is unchecked on a bar; there's a follow-up issue.
+  bright as no `SetAlpha` at all, and `GetAlpha()` read 1 on each.
+- **So a coloured bar's fill is opaque, whatever `fillAlpha` says** (measured 2026-10-15, 70374,
+  `/fp steps lg fill`, #53). `tintTrack` sets `fillAlpha` with `SetAlpha` and then paints the
+  fill's horizontal gradient. Over black and white stripes, coloured bars at `fillAlpha` 0.2, 0.6
+  and 1.0 drew identically opaque. `SetFillAlpha` (the `/glass fill` slider) changed nothing, and
+  `GetAlpha` read 1. A bar with no colour yet drew at 0.2 until it got one. A colour carrying its
+  own alpha (0.3) drew see-through, because that alpha goes into the gradient. Every Glass bar since
+  the fill gradient has been drawn at its colour's alpha, 1 for every consumer passing RGB.
 - **Slice margins vs. frame size.** A frame smaller than twice the slice margin still rendered
   in testing, but the corners get squeezed. Use the `small` set below ~40px tall.
 - **Sliced masks fail on boxes small in BOTH directions.** Measured in a sibling glass addon on

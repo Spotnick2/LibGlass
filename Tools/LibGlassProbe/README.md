@@ -67,17 +67,36 @@ Each column is `New({ preset = "clean", bodyAlpha = ... })` plus `SetTrackAlpha`
 - `/fp lg show a|b|c` shows one variant, and `/fp lg next` cycles through them at the same position.
 - `/fp lg value 0..100` sets the fake health (it starts at 3).
 - `/fp lg smoke 0..1` sets every body's opacity (0.24 by default).
-- `/fp lg report` logs the settings, and `/fp lg hide` closes both boards.
+- `/fp lg report` logs the settings, and `/fp lg hide` closes every board.
+
+## Bar fill opacity (#53): `/fp steps lg fill`, `/fp steps lg preview`
+
+The library sets a bar's fill opacity (`STYLE.fillAlpha`, `SetFillAlpha`) with `SetAlpha`, then
+paints the fill's horizontal gradient. The r7 run measured that a gradient texture ignores
+`SetAlpha`.
+- **`fill`:** four bars over black and white stripes, so a see-through fill shows them. Three are
+  coloured, at fill 0.2, 0.6 and 1.0; the fourth is 0.2 with no colour yet. The steps colour the
+  fourth, move `SetFillAlpha`, pass a colour alpha of 0.3 (into the gradient), and start the
+  client's `SetTimerDuration`. Every look is a step screenshot.
+- **`preview`:** unit-frame samples, classic and clean, today's opaque fill beside fill 0.6 (passed
+  as the colour's alpha, which is what the fix would paint), at 100%, 30% and 5% health. Also
+  `/fp lg preview [0..100]`.
+
+What the fill run measured (2026-10-15) is in `docs/GLASS-MATERIAL.md` §6.
 
 ## Commands
 
 `/fp lg` lists them all. The r7 board also has manual controls: `r7` (built fresh), `wash 0..1`,
-`disabled on|off`, `edge 0..1`, `backdrop on|off`. `clear` empties the saved log.
+`disabled on|off`, `edge 0..1`, `backdrop on|off`. `fill` and `preview` rebuild the #53 boards.
+`clear` empties the saved log.
 
 ## Tests
 
 `tests/test_probe.lua` loads the host from its checkout (`$env:FOREVERPROBE`, else
-`..\ForeverProbe`) and the probe through its TOC. It then runs every command and walks the r7
-procedure end to end, and checks that every widget method the probe calls is in the API dump.
-Without a host checkout it skips. CI fetches the host only when the `FOREVERPROBE_TOKEN` secret
-is set, since the host's repo is private. `forever-probe.pin` names the host tag to test against.
+`..\ForeverProbe`) and the probe through its TOC. It runs every command and walks each
+procedure end to end. Step screenshots are driven like the client's: OnUpdate ticks, then
+`SCREENSHOT_SUCCEEDED`. It also checks that every widget method the probe calls is in the API dump.
+
+Probe tests run **locally only** (ForeverProbe guide, section 8). The host is private and lives
+on the owner's disk, so a missing checkout is an error here. CI sets `FOREVERPROBE_OPTIONAL=1`, and
+there the test prints `SKIPPED`. Run `testsun.ps1` before any PR that touches the probe.

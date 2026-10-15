@@ -170,6 +170,14 @@ function Methods.GetText(w) return w._text end
 function Methods.RegisterEvent(w, event) w._events = w._events or {}; w._events[event] = true; return true end
 function Methods.UnregisterEvent(w, event) if w._events then w._events[event] = nil end end
 
+-- One rendered frame: every OnUpdate script runs.
+function WoW.tick(elapsed)
+    for _, f in ipairs(WoW.frames) do
+        local onUpdate = f._scripts and f._scripts.OnUpdate
+        if onUpdate then onUpdate(f, elapsed or 0.016) end
+    end
+end
+
 -- Fire an event at every frame registered for it, in creation order.
 function WoW.fire(event, ...)
     for _, f in ipairs(WoW.frames) do
