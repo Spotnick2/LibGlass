@@ -35,7 +35,7 @@ end]], {
     { "    sheenAlpha = 0.8,\n", "    sheenAlpha = 0.8,\n    probe = 0.5,\n" },
     { "    rimAlpha = 0.7,", "    rimAlpha = 0.33," },
     { "glowh = 4 }", "glowh = 4, probeEdge = 2 }" },
-    { '"Pill", "RelevelPill" }', '"Pill", "RelevelPill", "Probe" }' },
+    { '"SetWash" }', '"SetWash", "Probe" }' },
     { "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n",
       "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n"
       .. "    { key = \"probe\", style = \"probe\", fn = \"SetRimAlpha\", min = 0, max = 1, label = \"Probe\", help = \"probe\" },\n" },
@@ -292,8 +292,9 @@ do
     check(lib.SIZES == held.SIZES and lib.SIZES.large == held.large and lib.FONTS == held.FONTS,
           "SIZES and FONTS filled in place")
     eq(lib.FUNCTIONS, held.functions, "FUNCTIONS keeps r1's table")
-    eq(#lib.FUNCTIONS, nFunctions + 5, "with r2's, r3's and r5's names appended")
-    eq(table.concat(lib.FUNCTIONS, ",", nFunctions + 1), "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill", "in order")
+    eq(#lib.FUNCTIONS, nFunctions + 6, "with r2's, r3's, r5's and r7's names appended")
+    eq(table.concat(lib.FUNCTIONS, ",", nFunctions + 1), "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill,SetWash",
+       "in order")
     check(lib.SIZES.disc and lib.SIZES.disc_small, "SIZES gains the disc sets")
 
     local after = logSizes()
@@ -383,6 +384,9 @@ for _, file in ipairs(RELEASES) do
         bar:SetStatusBarColor(1, 0, 0)
         local d = rawget(A, "Disc") and A.Disc(newHost(64, 64), "disc_small")
         local gB = B.Apply(newHost(), "small")
+        -- A surface the older copy disabled (r3 on), through SetAlpha on its wash.
+        local gOff = rawget(B, "SetSurfaceEnabled") and B.Apply(newHost(), "large")
+        if gOff then B.SetSurfaceEnabled(gOff, false) end
         local held = { impl = lib.impl, instances = lib.instances, functions = lib.FUNCTIONS,
                        SIZES = lib.SIZES, STYLE = A.STYLE, setRim = A.TUNABLES[2].set }
         local names = {}
@@ -425,7 +429,20 @@ for _, file in ipairs(RELEASES) do
         eq(g.tint._color[2], 0.5, r .. " upgraded: and paints it")
         A.SetSurfaceEnabled(g, false)
         near(g.rim._alpha, 0.6 * A.STYLE.disabledAlpha, r .. " upgraded: SetSurfaceEnabled dims its rim")
-        eq(g.wash._alpha, A.STYLE.disabledAlpha, r .. " upgraded: and its wash")
+        -- r7: the wash ignores SetAlpha, so it is dimmed through its gradient,
+        -- from the instance's STYLE.wash (an older copy kept no record).
+        near(g.wash._gradient[3].a, A.STYLE.wash * A.STYLE.disabledAlpha, r .. " upgraded: and its wash's gradient")
+        A.SetSurfaceEnabled(g, true)
+        near(g.wash._gradient[3].a, A.STYLE.wash, r .. " upgraded: given back on enable")
+        check(A.SetWash(g, 0.05), r .. " upgraded: SetWash on an " .. r .. "-built rect")
+        near(g.wash._gradient[3].a, 0.05, r .. " upgraded: and paints it")
+        A.SetSurfaceEnabled(g, false)
+        if gOff then
+            check(B.SetSurfaceEnabled(gOff, true), r .. " upgraded: a surface " .. r .. " disabled is enabled")
+            near(gOff.wash._gradient[3].a, B.STYLE.wash, r .. " upgraded: its wash painted at the peak")
+            check(gOff.wash.glassBase == nil and gOff.wash.glassDim == nil, r .. " upgraded: and " .. r .. "'s record cleared")
+            eq(gOff.rim._alpha, 0.7, r .. " upgraded: its rim given back")
+        end
         if d then
             A.SetSurfaceEnabled(d, false)
             near(d.rim._alpha, 0.6 * A.STYLE.disabledAlpha, r .. " upgraded: and an " .. r .. "-built disc")

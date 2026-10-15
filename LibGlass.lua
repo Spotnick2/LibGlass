@@ -10,6 +10,7 @@
 --   local d = Glass.Disc(square, "disc")               -- r2: the round variant
 --   Glass.SetSurfaceTint(g, r, g, b, a)                -- r3: one surface's own tint
 --   Glass.SetSurfaceEnabled(g, false)                  -- r3: its disabled look
+--   Glass.SetWash(g, 0.1)                              -- r7: its wash (SetAlpha doesn't reach it)
 --   local pill, g = Glass.Pill(button)                 -- r5: a small glass button behind a symbol
 --
 -- Layer stack on a host frame, bottom to top:
@@ -31,7 +32,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 6
+local MAJOR, MINOR = "LibGlass-1.0", 7
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -180,7 +181,8 @@ do
     for _, name in ipairs(lib.FUNCTIONS) do have[name] = true end
     for _, name in ipairs({ "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
                             "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
-                            "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled", "Pill", "RelevelPill" }) do
+                            "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled", "Pill", "RelevelPill",
+                            "SetWash" }) do
         if not have[name] then
             table.insert(lib.FUNCTIONS, name)
             have[name] = true
@@ -228,11 +230,38 @@ local function dimRegion(r, dim)
     end
 end
 
+-- A gradient texture ignores SetAlpha on Forever (measured on the wash, #47;
+-- porting guide section 3), so the wash and the edge's glow carry their alpha
+-- in the gradient: white, clear at the bottom to glassPeak at the top, times
+-- glassDim while their surface is disabled.
+local function paintGradient(r)
+    r:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, r.glassPeak * (r.glassDim or 1)))
+end
+
+-- dimRegion for a gradient region: the dim goes through the gradient.
+-- `peak` stands in for the record a region built by an older copy lacks;
+-- without either, the region is skipped. Clears an older copy's glassBase.
+local function dimGradient(r, dim, peak)
+    if not r then return end
+    if r.glassPeak == nil then r.glassPeak = peak end
+    if r.glassPeak == nil then return end
+    if dim then
+        r.glassDim = dim
+    elseif r.glassDim ~= nil then
+        r.glassBase, r.glassDim = nil, nil
+    else
+        return
+    end
+    paintGradient(r)
+end
+
 -- Paint an edge: the top line's alpha, the glow's peak, the bottom line's, the
--- glow's depth. Hidden at 0, so an unused edge costs nothing to draw.
+-- glow's depth. Hidden at 0, so an unused edge costs nothing to draw. A
+-- disabled surface's glow stays dimmed.
 local function paintEdge(e, top, glow, bottom, glowh)
     e.top:SetColorTexture(1, 1, 1, top)
-    e.glow:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, glow))
+    e.glow.glassPeak = glow
+    paintGradient(e.glow)
     e.glow:SetHeight(math.max(1, glowh))
     e.bottom:SetColorTexture(0, 0, 0, bottom)
     e.top:SetShown(top > 0)
@@ -331,7 +360,8 @@ local function buildBody(inst, host, g, S)
     local wash = host:CreateTexture(nil, "BACKGROUND", nil, -4)
     wash:SetAllPoints(host)
     wash:SetColorTexture(1, 1, 1, 1)
-    wash:SetGradient("VERTICAL", CreateColor(1, 1, 1, 0), CreateColor(1, 1, 1, st.wash))
+    wash.glassPeak = st.wash   -- r7: SetWash and SetSurfaceEnabled repaint from it
+    paintGradient(wash)
     wash:AddMaskTexture(g.mask)
     g.wash = wash
 
@@ -778,20 +808,36 @@ end
 -- had (a consumer's own included). Region alpha only, so it composes with
 -- SetSurfaceTint, SetEdge and SetEdgeAlpha, which set colours; SetRimAlpha
 -- keeps a disabled rim dimmed. Text on g.top is the caller's to dim.
+-- The wash and the edge's glow ignore SetAlpha (#47): r7 dims them through
+-- their gradients, from the peak SetWash, SetEdge or SetEdgeAlpha last set
+-- (for a region an older copy built: the instance's STYLE).
 -- `enabled` is truth-tested: pass a plain value.
 function lib.impl.SetSurfaceEnabled(inst, g, enabled)
     if type(g) ~= "table" or not g.tint then return false end
     local dim = (not enabled) and inst.STYLE.disabledAlpha or nil
     dimRegion(g.tint, dim)
     dimRegion(g.grain, dim)
-    dimRegion(g.wash, dim)
+    dimGradient(g.wash, dim, inst.STYLE.wash)
     dimRegion(g.dark, dim)
     dimRegion(g.rim, dim)
     if g.edge then
         dimRegion(g.edge.top, dim)
-        dimRegion(g.edge.glow, dim)
+        dimGradient(g.edge.glow, dim, (not g.edge.custom) and inst.STYLE.edge * inst.EDGE.glow or nil)
         dimRegion(g.edge.bottom, dim)
     end
+    return true
+end
+
+-- One surface's wash (r7): the peak of its top-down white gradient, 0 hides
+-- it. The way to change a wash: SetAlpha has no effect on a gradient texture
+-- (#47), and SetSurfaceEnabled repaints the wash from the peak recorded here,
+-- so a wash repainted with the consumer's own SetGradient would be overwritten
+-- on a disable. A disabled surface's wash stays dimmed. Plain numbers only.
+function lib.impl.SetWash(inst, g, top)
+    if type(g) ~= "table" or not g.wash or not inRange(top, 0, 1) then return false end
+    g.wash.glassPeak = top
+    paintGradient(g.wash)
+    g.wash:SetShown(top > 0)
     return true
 end
 
