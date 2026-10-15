@@ -147,7 +147,7 @@ small).
 ### Opt-in clean material (r6)
 
 `LibStub("LibGlass-1.0"):New({ preset = "clean", bodyAlpha = 0.24 })` selects
-the treatment explored in Tools/GlassComparison. The preset overrides only:
+the treatment explored in Tools/GlassComparison (now `Tools/LibGlassProbe`, `/fp lg show`). The preset overrides only:
 
 | STYLE field | Clean | Original default |
 |---|---|---|
