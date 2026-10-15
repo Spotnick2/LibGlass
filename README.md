@@ -6,8 +6,8 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** r6 released: the opt-in clean preset and independent body opacity. Existing
-> defaults are unchanged.
+> **Status:** r7 released: a disabled surface dims its wash and edge glow too, and `SetWash`
+> changes one surface's wash. Existing defaults are unchanged.
 
 ## Embedding
 
@@ -49,6 +49,7 @@ local d   = Glass.Disc(square, "disc")               -- r2: round glass on a squ
 local b   = Glass.Apply(button, "thin_small")        -- r3: the thin rim, opt-in
 Glass.SetSurfaceTint(b, 0.18, 0.42, 0.22, 0.35)      -- r3: one surface's own tint
 Glass.SetSurfaceEnabled(b, false)                    -- r3: its disabled look
+Glass.SetWash(b, 0.08)                               -- r7: its wash (g.wash:SetAlpha does nothing)
 local pill, p = Glass.Pill(button)                   -- r5: a small glass button behind its symbol
 ```
 
@@ -105,7 +106,8 @@ Glass.SetSurfaceTint(g) -- restore its built tint and opacity
 | `SetBar(bar, max, value, snap?)`, `Smooth()` | r1 | eased bar values (secrets welcome) |
 | `Inset(size?)`, `ContentLevel(host)` | r1 | content inset (px) and frame level; for `disc`/`disc_small` the inset is in texture px (256 / 64): scale it by host size ÷ texture size |
 | `SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`, `SetEdge(g, top, glow, bottom, glowh?)`, `SetFont(key)` | r1 | live setters, this instance's surfaces only (`SetRimAlpha` reaches discs) |
-| `SetSurfaceTint(g, r, g, b, a)`, `SetSurfaceEnabled(g, enabled)` | r3 | one surface: its own tint (`a` optional; `(g)` = back to its built colour), its disabled look (its regions' alphas scaled by `STYLE.disabledAlpha`, given back on enable) |
+| `SetSurfaceTint(g, r, g, b, a)`, `SetSurfaceEnabled(g, enabled)` | r3 | one surface: its own tint (`a` optional; `(g)` = back to its built colour), its disabled look (its regions' alphas scaled by `STYLE.disabledAlpha`, given back on enable; from r7 the wash and edge glow are dimmed through their gradients) |
+| `SetWash(g, top)` | r7 | one surface's wash: the peak of its top-down white gradient, 0..1, 0 hides it. **The way to change a wash**: a gradient texture ignores `SetAlpha` on Forever, and `SetSurfaceEnabled` repaints the wash from this value |
 | `Pill(button, opts?) → pill, g`, `RelevelPill(pill)` | r5 | the small glass button behind a symbol: the material on a child frame one level under the button, its rims down with it (under the symbol), no grain or shadow, the button's highlight softened to 0.4 (`opts`: `size` a rect size, default `"small"`; `side` px, a centred square; `highlight` alpha or `false`); `RelevelPill` after the button's level changes |
 
 Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`large`, `small`,
