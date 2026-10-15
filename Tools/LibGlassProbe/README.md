@@ -99,4 +99,4 @@ procedure end to end. Step screenshots are driven like the client's: OnUpdate ti
 
 Probe tests run **locally only** (ForeverProbe guide, section 8). The host is private and lives
 on the owner's disk, so a missing checkout is an error here. CI sets `FOREVERPROBE_OPTIONAL=1`, and
-there the test prints `SKIPPED`. Run `testsun.ps1` before any PR that touches the probe.
+there the test prints `SKIPPED`. Run `tests\run.ps1` before any PR that touches the probe.
