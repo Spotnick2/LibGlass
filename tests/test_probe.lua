@@ -296,14 +296,15 @@ S.Run()   -- 6: enable it
 near(L.reflect.rim._gradient[3].a, 0.52, "enabled: given back")
 eq(L.rim._alpha, 0.12, "the rim at its own alpha")
 S.Answer(true)
-local gold = Q.controls[2].g.rim._vertex
-check(gold[1] == 1 and gold[2] == 0.82 and gold[3] == 0.3, "the gold controls' rims are gold")
+local red = Q.controls[2].g.rim._vertex
+check(red[1] == 1 and red[2] == 0.25 and red[3] == 0.2, "the own-rim controls' rims are red")
+eq(Q.controls[2].g.size, "large", "on large controls, so the rim is visible")
 S.Answer(true)
 S.Run(); shoot()   -- 9: outline 0.2
 eq(Q.controls[1].g.rim._alpha, 0.2, "the default control's rim follows SetRimAlpha")
-check(Q.controls[2].g.rim._alpha == 1 and Q.controls[3].g.rim._alpha == 1, "the gold ones keep their own")
+check(Q.controls[2].g.rim._alpha == 1 and Q.controls[3].g.rim._alpha == 1, "the red ones keep their own")
 S.Answer(true)
-S.Run()   -- 11: disable the right control
+S.Run(); shoot()   -- 11: disable the right control
 near(Q.controls[3].g.rim._alpha, D, "the right control dimmed")
 S.Answer(true)
 S.Run()   -- 13: enable it
@@ -327,6 +328,35 @@ fp("lg outline x")
 check(logHas("outline 0.2..1"), "a non-number is refused with the usage")
 fp("lg hide")
 check(not Q.root:IsShown(), "lg hide closes it too")
+
+-- The own-rim part alone (the first r9 run's gold rims were too faint to judge).
+fp("steps lg rim")
+local rrec = ForeverProbeDB.steps.records["LibGlassProbe/rim"]
+check(rrec and rrec.status == "active", "/fp steps lg rim starts it")
+eq(rrec.results[1].check, "PASS", "step 1 passes on r" .. N)
+local before = Q.root
+S.Run(); shoot()   -- 2: a fresh board
+check(Q.root ~= before and Q.root:IsShown(), "a fresh r9 board")
+eq(Q.controls[2].g.rim._alpha, 1, "the red rim at its own alpha")
+S.Answer(true)
+S.Run(); shoot()   -- 4: outline 0.2
+check(Q.controls[1].g.rim._alpha == 0.2 and Q.controls[2].g.rim._alpha == 1, "only the default rim fades")
+S.Answer(true)
+S.Run(); shoot()   -- 6: disable right
+near(Q.controls[3].g.rim._alpha, D, "the right control dimmed")
+S.Answer(true)
+S.Run()   -- 8: enable it
+eq(Q.controls[3].g.rim._alpha, 1, "given back")
+S.Answer(true)
+S.Next()
+eq(rrec.status, "done", "the rim procedure finishes")
+eq(rrec.count, 10, "ten steps")
+for i = 1, rrec.count do
+    local r = rrec.results[i]
+    check(r and (r.status == "done" or r.status == "yes" or r.status == "no") and not r.errors,
+          "rim step " .. i .. " completed without an error")
+end
+fp("lg hide")
 
 ------------------------------------------------------------------------------
 -- Nothing went wrong, nothing went to chat, the log clears in place
