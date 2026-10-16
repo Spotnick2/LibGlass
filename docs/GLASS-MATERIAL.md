@@ -238,20 +238,24 @@ which is `nil` (a circle has no top line):
 rim (§3) and its inset (`Glass.Inset("thin")` = 4, `"thin_small"` = 2): same mask, shadow, slice
 margins, edge and sheen. Opt-in per surface, so nothing already built changes.
 
-**Per-surface options (r3, r7).** Three setters act on one surface (`g` from `Apply` or `Disc`):
+**Per-surface options (r3, r7, r9).** Five setters act on one surface (`g` from `Apply` or `Disc`):
 
 | Setter | What it does | Owns |
 |---|---|---|
 | `Glass.SetSurfaceTint(g, r, g, b, a?)` | that surface's body tint: an accent on one button (a restrained green), a near-opaque body for a dialog over busy content (alpha ~0.9). A nil `a` keeps the surface's built alpha. `SetSurfaceTint(g)` goes back to the colour the surface was **built** with (recorded as `g.tint.glassColor`; a surface an older copy built falls back to `STYLE.tint`), so AltStable-style `STYLE` changes between `Apply`s don't leak in. Returns `false` (and changes nothing) unless every channel is a number in 0..1 | `g.tint`'s colour; no instance setter touches it |
 | `Glass.SetSurfaceEnabled(g, enabled)` | the disabled look: a falsy `enabled` (as the client's `SetEnabled`) **scales** the alpha of `g.tint`, `g.grain`, `g.wash`, `g.dark`, `g.rim` and the edge's three lines by `STYLE.disabledAlpha` (0.25 from r4; r3 shipped 0.4); a truthy one gives each region back the alpha it had, a consumer's own included (a consumer's 0.5 dark rim goes to 0.5 × `disabledAlpha` and back to 0.5). The wash and the edge's glow are gradients, which **ignore `SetAlpha`** on Forever (#47): until r7 they didn't dim at all; from r7 they are dimmed **through their gradient**, from the peak recorded on the region (`glassPeak`: the built `STYLE.wash`, then what `SetWash`, `SetEdge` or `SetEdgeAlpha` last set; a region an older copy built falls back to the instance's `STYLE`; an older copy's *custom* glow has no known peak, so its dim is recorded or cleared without a repaint, and the next `SetEdge` paints it right). Disabling twice doesn't dim twice. Shadow and sheen are left alone; text is the caller's to dim. Returns `false` for anything that isn't a surface. r3's 0.4 was **subtle** at button size in game (Time Is Money), hence 0.25 (#24). An upgrade fills the key only where it is missing, so an instance keeps the value of the first copy that gave it one: made by r3, or by r1/r2 and upgraded by an r3 copy first, it keeps 0.4; otherwise it gets 0.25. With r3 and r4 copies both installed, which one an instance gets can depend on addon load order. An instance that sets its own with `New({ style = { disabledAlpha = ... } })` is unaffected | those regions' alpha while disabled; the wash's and glow's gradient |
 | `Glass.SetWash(g, top)` (r7) | that surface's wash: the peak of its top-down white gradient (`STYLE.wash` = 0.18 when built), **0 hides it**. **The way to change a wash**: `g.wash:SetAlpha` has no effect on it (#47), and `SetSurfaceEnabled` repaints the wash from the value recorded here, so a wash repainted with your own `SetGradient` goes back to the recorded value on a disable. A disabled surface's wash stays dimmed. Works on surfaces an older copy built. Returns `false` (and changes nothing) unless `top` is a number in 0..1 | `g.wash`'s gradient and shown state |
+| `Glass.SetSurfaceRim(g, r, g, b, a?)` (r9, #40) | that surface's rim: its colour as **vertex RGB** (`g.rim:SetVertexColor`, so the texture keeps its shading; GlassUnitFrames' cast-bar Border option), and with `a` its alpha (any value in 0..1, under `SetRimAlpha`'s 0.2 floor too: the reflective shell's 0.12). A nil `a` keeps the current alpha. **An alpha makes the rim the surface's own** (`g.rim.glassOwnAlpha`): `SetRimAlpha` and the rim tunable leave it alone from then on, as `SetEdgeAlpha` does a host's own edge. No colour with an alpha is white. **`SetSurfaceRim(g)` with nothing else is the built look again**: white, at the instance's `rimAlpha`, following `SetRimAlpha` again. Returns `false` (and changes nothing) unless every channel is a number in 0..1 | `g.rim`'s vertex colour; its alpha once given one |
+| `Glass.SetSurfaceAlpha(g, part, a)` (r9, #40) | the alpha of one of the surface's plain regions: `"rim"`, `"dark"`, `"grain"` or `"shadow"`. What `g.dark:SetAlpha(a)` does, **without fighting the library**: on a disabled surface `a` becomes the alpha enabling gives back (drawn dimmed until then), and a rim set here is the surface's own, as with `SetSurfaceRim` (until `SetSurfaceRim(g)`). The tint's alpha is `SetSurfaceTint`'s, the wash's `SetWash`'s, the edge's `SetEdge`'s, so those parts are refused. Returns `false` (and changes nothing) for any other part or unless `a` is a number in 0..1 | that region's alpha |
 
-They compose: the dim is region alpha, while `SetSurfaceTint`, `SetEdge` and `SetEdgeAlpha` set
-colours, so a disabled accent button keeps its green, dimmed. While a surface is disabled each
-dimmed region keeps its base alpha as `glassBase` and the factor as `glassDim`; `SetRimAlpha`
-updates a disabled rim's base and keeps it dimmed. A consumer's own `SetAlpha` on a dimmed region
-(a hover highlight on the rim) shows until the surface is enabled again, which restores the base:
-set your alphas while the surface is enabled. All three work on surfaces an older copy built
+They compose: the dim is region alpha, while `SetSurfaceTint`, `SetSurfaceRim`'s colour, `SetEdge`
+and `SetEdgeAlpha` set colours, so a disabled accent button keeps its green, dimmed. While a
+surface is disabled each dimmed region keeps its base alpha as `glassBase` and the factor as
+`glassDim`; `SetRimAlpha`, `SetSurfaceRim` and `SetSurfaceAlpha` update a disabled region's base and
+keep it dimmed. A consumer's own `SetAlpha` on a dimmed region (a hover highlight on the rim) shows
+until the surface is enabled again, which restores the base: use `SetSurfaceAlpha`, or set your
+alphas while the surface is enabled. (Before r9, GlassRaidFrames' editor enabled each surface,
+set its alphas and disabled it again to get this.) All of them work on surfaces an older copy built
 (they use only r1's region fields), and take **plain values**: they range-check and truth-test
 their arguments, so a secret would throw.
 
@@ -305,6 +309,52 @@ given.
 The symbol, its gold and its pressed offset stay with each consumer: which frameless atlases exist
 is a per-client measurement, and drawn symbols are each consumer's art.
 
+**The reflective shell (r9, #56).** `Glass.Reflect(g, host, opts?) → rf` adds three static layers
+that light a window's rect surface from above. They are the ones GlassRaidFrames' click-casting
+editor and PetStable built by hand from `References\LIBGLASS-WINDOW-STYLING.md` (the owner matched
+the two in game, 2026-10-16), with the same values:
+
+| Layer | Draw layer | Region | Gradient (alpha in its colours) |
+|---|---|---|---|
+| Header reflection (`rf.header`, with `opts.header`) | BACKGROUND -3, over the wash | host, masked by `g.mask`, along the top, `opts.header` px high | VERTICAL: (0.77, 0.81, 0.85, 0) at the bottom → (0.77, 0.81, 0.85, 0.105) at the top |
+| Lit rim (`rf.rim`) | OVERLAY 6, with the rim | `g.top`, the surface's own rim file (`SIZES[g.size].rim`), sliced as the rim | VERTICAL: (0.55, 0.65, 0.75, 0.035) → (0.84, 0.88, 0.91, 0.52) |
+| Top highlight (`rf.top`) | OVERLAY 7 | `g.top`, 1 px high, 1 px below the top, `maskMargin` px off the corners | HORIZONTAL: (0.88, 0.91, 0.93, 0.58) on the left → (0.65, 0.73, 0.8, 0.035) |
+
+- **Fit `opts.header` to the window's header** so the reflection is gone before dense content
+  starts (GlassRaidFrames 125 over content at 138, PetStable 70 over content at 82). Without it, or
+  at 0, there is no header layer (`rf.header` is nil).
+- **Their opacity is in their gradients**, so `SetAlpha` does nothing to them (#47). Hide a layer
+  with `SetShown`. `SetSurfaceEnabled` dims them through their gradients, repainting from the
+  gradient `Reflect` built, and a surface disabled before the call gets them dimmed. Enabling an
+  enabled surface doesn't repaint them, so a consumer's own `SetGradient` on a layer survives until
+  the next disable.
+- **The rest of the shell stays the caller's**, as in the styling recipe: the body tint
+  (`SetSurfaceTint`, 0.085, 0.095, 0.115, 0.78), wash 0 (`SetWash`), the edge off
+  (`SetEdge(g, 0, 0, 0)`: the top highlight takes its place), the rim, dark rim, grain and shadow
+  alphas (`SetSurfaceAlpha`: 0.12, 0.55, 0, 0.18), and the extra masked backing. BACKGROUND -7,
+  between the shadow (-8) and the tint (-6), is free for that backing; -3 is the header layer's.
+- Once per surface; it errors at the caller's line for a disc, a table that isn't a surface, a
+  missing host, `opts` that isn't a table, a `header` that isn't a number from 0 up, or a second
+  call, before building anything. No instance setter touches the layers. No new texture, no
+  `OnUpdate`. *In game: the library's layers next to a hand-built copy of the recipe are `/fp steps
+  lg r9`.*
+
+```lua
+local g = Glass.Apply(window, "large")       -- a clean instance: thin
+Glass.SetSurfaceTint(g, 0.085, 0.095, 0.115, 0.78)
+Glass.SetWash(g, 0)
+Glass.SetEdge(g, 0, 0, 0)
+Glass.SetSurfaceAlpha(g, "rim", 0.12)
+Glass.SetSurfaceAlpha(g, "dark", 0.55)
+Glass.SetSurfaceAlpha(g, "grain", 0)
+Glass.SetSurfaceAlpha(g, "shadow", 0.18)
+local backing = window:CreateTexture(nil, "BACKGROUND", nil, -7)
+backing:SetAllPoints(window)
+backing:AddMaskTexture(g.mask)
+backing:SetColorTexture(0.03, 0.03, 0.035, 0.55)
+Glass.Reflect(g, window, { header = 70 })
+```
+
 A glass bar (`Glass.Bar`), bottom to top:
 
 | Part | Where | Notes |
@@ -322,7 +372,9 @@ A glass bar (`Glass.Bar`), bottom to top:
 one definition. Each instance has its own list, its setters bound to it.
 
 Every setter (`SetFillAlpha`, `SetRimAlpha`, `SetTrackAlpha`, `SetFillEnd`, `SetEdgeAlpha`,
-`SetFont`, and the per-surface `SetSurfaceTint`, `SetSurfaceEnabled`) touches only the surfaces built through **its own instance**, and the bar hooks paint
+`SetFont`) touches only the surfaces built through **its own instance**; the per-surface ones
+(`SetSurfaceTint`, `SetSurfaceEnabled`, `SetWash`, `SetSurfaceRim`, `SetSurfaceAlpha`) only the
+surface they are given. The bar hooks paint
 with the bar's own instance's `STYLE`.
 
 A `SetStatusBarColor` hook re-tints the fill and the track only when the colour actually changes

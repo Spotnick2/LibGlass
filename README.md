@@ -51,6 +51,9 @@ Glass.SetSurfaceTint(b, 0.18, 0.42, 0.22, 0.35)      -- r3: one surface's own ti
 Glass.SetSurfaceEnabled(b, false)                    -- r3: its disabled look
 Glass.SetWash(b, 0.08)                               -- r7: its wash (g.wash:SetAlpha does nothing)
 local pill, p = Glass.Pill(button)                   -- r5: a small glass button behind its symbol
+Glass.SetSurfaceRim(b, 0.9, 0.75, 0.3, 0.8)          -- r9: its rim's colour and own alpha
+Glass.SetSurfaceAlpha(g, "dark", 0.55)               -- r9: one region's alpha, safe while disabled
+local rf  = Glass.Reflect(g, frame, { header = 70 }) -- r9: the reflective shell's lit layers
 ```
 
 ## API
@@ -109,10 +112,12 @@ Glass.SetSurfaceTint(g) -- restore its built tint and opacity
 | `SetSurfaceTint(g, r, g, b, a)`, `SetSurfaceEnabled(g, enabled)` | r3 | one surface: its own tint (`a` optional; `(g)` = back to its built colour), its disabled look (its regions' alphas scaled by `STYLE.disabledAlpha`, given back on enable; from r7 the wash and edge glow are dimmed through their gradients) |
 | `SetWash(g, top)` | r7 | one surface's wash: the peak of its top-down white gradient, 0..1, 0 hides it. **The way to change a wash**: a gradient texture ignores `SetAlpha` on Forever, and `SetSurfaceEnabled` repaints the wash from this value |
 | `Pill(button, opts?) → pill, g`, `RelevelPill(pill)` | r5 | the small glass button behind a symbol: the material on a child frame one level under the button, its rims down with it (under the symbol), no grain or shadow, the button's highlight softened to 0.4 (`opts`: `size` a rect size, default `"small"`; `side` px, a centred square; `highlight` alpha or `false`); `RelevelPill` after the button's level changes |
+| `SetSurfaceRim(g, r, g, b, a?)`, `SetSurfaceAlpha(g, part, a)` | r9 | one surface's rim colour (vertex RGB) and alpha, and the alpha of its `"rim"`, `"dark"`, `"grain"` or `"shadow"`. A rim given an alpha is the surface's own: `SetRimAlpha` leaves it alone until `SetSurfaceRim(g)`, the built look. On a disabled surface the alpha is the one enabling gives back |
+| `Reflect(g, host, opts?) → rf` | r9 | the reflective shell (GlassRaidFrames, PetStable): a lit rim and a 1 px top highlight on `g.top`, and with `opts.header` (px) a header reflection over the wash, all static gradients, kept as `g.reflect = { rim, top, header }`. Once per rect surface; `SetSurfaceEnabled` dims them. The tint, wash, edge, alphas and backing stay the caller's (`docs/GLASS-MATERIAL.md` §4) |
 
 Data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (per instance); `MEDIA`, `SIZES` (`large`, `small`,
 from r2 `disc`, `disc_small`, from r3 `thin`, `thin_small`), `FONTS`, `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
-Region fields: `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
+Region fields: `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}` (from r9, `g.reflect`),
 `bar.{glassMask,track,trackClip,overlay,trackColor}`.
 
 `g.size` records the resolved texture-set key: on a clean instance, requesting

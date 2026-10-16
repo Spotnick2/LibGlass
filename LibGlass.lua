@@ -11,6 +11,9 @@
 --   Glass.SetSurfaceTint(g, r, g, b, a)                -- r3: one surface's own tint
 --   Glass.SetSurfaceEnabled(g, false)                  -- r3: its disabled look
 --   Glass.SetWash(g, 0.1)                              -- r7: its wash (SetAlpha doesn't reach it)
+--   Glass.SetSurfaceRim(g, r, g, b, a?)                -- r9: its rim's colour and alpha
+--   Glass.SetSurfaceAlpha(g, "dark", 0.5)              -- r9: one region's alpha (rim, dark, grain, shadow)
+--   local rf = Glass.Reflect(g, frame, { header = 70 }) -- r9: the reflective shell's lit layers
 --   local pill, g = Glass.Pill(button)                 -- r5: a small glass button behind a symbol
 --
 -- Layer stack on a host frame, bottom to top:
@@ -18,6 +21,8 @@
 --   ...caller's content frames...        (host level + 2)
 --   dark rim -> sheen -> rim -> text     (on g.top, host level + 10)
 --   optional edge: top line + glow, bottom line (on g.top; off by default)
+--   optional reflection (r9, Reflect): a header glow over the wash; a lit
+--   rim and a top highlight on g.top
 -- A disc (Glass.Disc) has the same stack on a square host, every layer
 -- unsliced and round, and no edge.
 --
@@ -32,7 +37,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 8
+local MAJOR, MINOR = "LibGlass-1.0", 9
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -182,7 +187,7 @@ do
     for _, name in ipairs({ "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
                             "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
                             "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled", "Pill", "RelevelPill",
-                            "SetWash" }) do
+                            "SetWash", "SetSurfaceRim", "SetSurfaceAlpha", "Reflect" }) do
         if not have[name] then
             table.insert(lib.FUNCTIONS, name)
             have[name] = true
@@ -230,6 +235,17 @@ local function dimRegion(r, dim)
     end
 end
 
+-- Give a region a new alpha of its own: on a disabled surface it becomes the
+-- base that enabling gives back, and the region stays dimmed until then.
+local function setBase(r, a)
+    if r.glassBase ~= nil then
+        r.glassBase = a
+        r:SetAlpha(a * r.glassDim)
+    else
+        r:SetAlpha(a)
+    end
+end
+
 -- A gradient texture ignores SetAlpha on Forever (measured on the wash, #47;
 -- porting guide section 3), so the wash and the edge's glow carry their alpha
 -- in the gradient: white, clear at the bottom to glassPeak at the top, times
@@ -269,6 +285,25 @@ local function paintEdge(e, top, glow, bottom, glowh)
     e.top:SetShown(top > 0)
     e.glow:SetShown(glow > 0)
     e.bottom:SetShown(bottom > 0)
+end
+
+-- The reflective shell's layers (r9, #56), as GlassRaidFrames' click-casting
+-- editor and PetStable draw them (matched by the owner in game; References\
+-- LIBGLASS-WINDOW-STYLING.md): orientation, then the first and second colour
+-- (bottom then top for VERTICAL, left then right for HORIZONTAL).
+local REFLECT = {
+    rim = { "VERTICAL", { 0.55, 0.65, 0.75, 0.035 }, { 0.84, 0.88, 0.91, 0.52 } },
+    top = { "HORIZONTAL", { 0.88, 0.91, 0.93, 0.58 }, { 0.65, 0.73, 0.8, 0.035 } },
+    header = { "VERTICAL", { 0.77, 0.81, 0.85, 0 }, { 0.77, 0.81, 0.85, 0.105 } },
+}
+local REFLECT_KEYS = { "rim", "top", "header" }
+
+-- Paint a reflection layer from its own gradient record, times glassDim
+-- while its surface is disabled (its alpha is in the gradient, #47).
+local function paintStops(r)
+    local s, d = r.glassStops, r.glassDim or 1
+    r:SetGradient(s[1], CreateColor(s[2][1], s[2][2], s[2][3], s[2][4] * d),
+        CreateColor(s[3][1], s[3][2], s[3][3], s[3][4] * d))
 end
 
 local function paintSharedEdge(inst, e)
@@ -534,6 +569,70 @@ function lib.impl.RelevelPill(inst, pill)
     return true
 end
 
+-- The reflective shell (r9, #56): three static layers that light a rect
+-- surface from above. A second rim, its gradient bright along the top and
+-- almost clear at the bottom; a 1 px highlight along the top, bright on the
+-- left; and, with opts.header (px), a soft reflection over that much of the
+-- body's top, fading to clear (fit it to the window's header, so it is gone
+-- before dense content starts). Returns g.reflect = { rim, top, header }
+-- (header nil without opts.header). Once per surface; no new texture, no
+-- OnUpdate. The layers' opacity is in their gradients, so SetAlpha does
+-- nothing to them (#47): hide one with SetShown. SetSurfaceEnabled dims them,
+-- repainting from the gradient built here, and a surface disabled before the
+-- call gets them dimmed. The rest of the surface is the caller's: the shells
+-- that use it also turn the edge off (SetEdge(g, 0, 0, 0)), lower the rim
+-- (SetSurfaceAlpha) and add a backing (LIBGLASS-WINDOW-STYLING.md).
+function lib.impl.Reflect(inst, g, host, opts)
+    local S = type(g) == "table" and g.top and g.mask and lib.SIZES[g.size]
+    if not S or S.shape == "disc" then
+        error(MAJOR .. ": Reflect takes a rect surface from Apply, got " .. tostring(g), 3)
+    end
+    if type(host) ~= "table" or type(host.CreateTexture) ~= "function" then
+        error(MAJOR .. ": Reflect takes the surface's host frame, got " .. tostring(host), 3)
+    end
+    if opts ~= nil and type(opts) ~= "table" then
+        error(MAJOR .. ": Reflect takes an options table ({ header = ... }), got " .. tostring(opts), 3)
+    end
+    local header = opts and opts.header
+    if header ~= nil and not (type(header) == "number" and header >= 0 and header < math.huge) then
+        error(MAJOR .. ": Reflect's header is a height in px, 0 or more, got " .. tostring(header), 3)
+    end
+    if g.reflect then error(MAJOR .. ": this surface already has its reflection", 3) end
+    local dim = g.rim and g.rim.glassDim
+    local function layer(r, key)
+        r.glassStops = fill({}, REFLECT[key])
+        r.glassDim = dim
+        paintStops(r)
+        return r
+    end
+    local rf = {}
+
+    local rim = g.top:CreateTexture(nil, "OVERLAY", nil, 6)
+    rim:SetTexture(lib.MEDIA .. S.rim)
+    rim:SetAllPoints(g.top)
+    slice(rim, S.rimMargin)
+    rf.rim = layer(rim, "rim")
+
+    local top = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
+    top:SetColorTexture(1, 1, 1, 1)
+    top:SetPoint("TOPLEFT", host, "TOPLEFT", S.maskMargin, -1)
+    top:SetPoint("TOPRIGHT", host, "TOPRIGHT", -S.maskMargin, -1)
+    top:SetHeight(1)
+    rf.top = layer(top, "top")
+
+    if header and header > 0 then
+        local h = host:CreateTexture(nil, "BACKGROUND", nil, -3)
+        h:SetColorTexture(1, 1, 1, 1)
+        h:AddMaskTexture(g.mask)
+        h:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+        h:SetPoint("TOPRIGHT", host, "TOPRIGHT", 0, 0)
+        h:SetHeight(header)
+        rf.header = layer(h, "header")
+    end
+    g.reflect = rf
+    return rf
+end
+
 -- A content frame level for things drawn between the body and the rim.
 function lib.impl.ContentLevel(inst, host)
     return host:GetFrameLevel() + 2
@@ -754,17 +853,13 @@ function lib.impl.SetTrackAlpha(inst, a)
 end
 
 -- Live-tune the bright rim's opacity on every glass surface built so far
--- (a disabled surface's rim takes it as its base and stays dimmed).
+-- (a disabled surface's rim takes it as its base and stays dimmed), except
+-- the rims given their own alpha (r9: SetSurfaceRim, SetSurfaceAlpha).
 function lib.impl.SetRimAlpha(inst, a)
     if not inRange(a, 0.2, 1) then return false end
     inst.STYLE.rimAlpha = a
     for _, rim in ipairs(inst._rims) do
-        if rim.glassBase ~= nil then
-            rim.glassBase = a
-            rim:SetAlpha(a * rim.glassDim)
-        else
-            rim:SetAlpha(a)
-        end
+        if not rim.glassOwnAlpha then setBase(rim, a) end
     end
     return true
 end
@@ -816,6 +911,49 @@ function lib.impl.SetSurfaceTint(inst, g, r, gg, b, a)
     return true
 end
 
+-- One surface's own rim (r9, #40): its colour, as vertex RGB (the texture
+-- keeps its shading), and optionally its alpha. A nil alpha keeps the current
+-- one. An alpha makes it the surface's own: SetRimAlpha leaves it alone from
+-- then on, as SetEdgeAlpha does a host's own edge. SetSurfaceRim(g) with
+-- nothing else is the built look again: white, at the instance's rimAlpha,
+-- following SetRimAlpha. A disabled rim stays dimmed, the alpha its base.
+-- No colour with an alpha is white. Plain numbers only: they are range-checked.
+function lib.impl.SetSurfaceRim(inst, g, r, gg, b, a)
+    if type(g) ~= "table" or not g.rim then return false end
+    if r == nil and gg == nil and b == nil and a == nil then
+        g.rim:SetVertexColor(1, 1, 1, 1)
+        g.rim.glassOwnAlpha = nil
+        setBase(g.rim, inst.STYLE.rimAlpha)
+        return true
+    end
+    if r == nil then r, gg, b = 1, 1, 1 end
+    if not (inRange(r, 0, 1) and inRange(gg, 0, 1) and inRange(b, 0, 1) and (a == nil or inRange(a, 0, 1))) then
+        return false
+    end
+    g.rim:SetVertexColor(r, gg, b, 1)
+    if a ~= nil then
+        g.rim.glassOwnAlpha = true
+        setBase(g.rim, a)
+    end
+    return true
+end
+
+-- One surface's own alpha for one of its plain regions (r9, #40): "rim",
+-- "dark", "grain" or "shadow". What a consumer's own g.dark:SetAlpha(...)
+-- does, without fighting the library: on a disabled surface it becomes the
+-- alpha enabling gives back (the region stays dimmed until then), and a rim
+-- set here is the surface's own, which SetRimAlpha leaves alone (until
+-- SetSurfaceRim(g)). The tint's alpha is SetSurfaceTint's, the wash's
+-- SetWash's, the edge's SetEdge's. Plain numbers in 0..1.
+local SURFACE_ALPHA = { rim = true, dark = true, grain = true, shadow = true }
+
+function lib.impl.SetSurfaceAlpha(inst, g, part, a)
+    if type(g) ~= "table" or not SURFACE_ALPHA[part] or not g[part] or not inRange(a, 0, 1) then return false end
+    if part == "rim" then g.rim.glassOwnAlpha = true end
+    setBase(g[part], a)
+    return true
+end
+
 -- One surface's disabled look (r3): the alphas of its tint, grain, wash,
 -- dark rim, rim and edge scaled by STYLE.disabledAlpha, so an inactive
 -- control reads as inactive; enabling gives each region back the alpha it
@@ -824,7 +962,8 @@ end
 -- keeps a disabled rim dimmed. Text on g.top is the caller's to dim.
 -- The wash and the edge's glow ignore SetAlpha (#47): r7 dims them through
 -- their gradients, from the peak SetWash, SetEdge or SetEdgeAlpha last set
--- (for a region an older copy built: the instance's STYLE).
+-- (for a region an older copy built: the instance's STYLE). r9: Reflect's
+-- layers too, through their gradients.
 -- `enabled` is truth-tested: pass a plain value.
 function lib.impl.SetSurfaceEnabled(inst, g, enabled)
     if type(g) ~= "table" or not g.tint then return false end
@@ -838,6 +977,15 @@ function lib.impl.SetSurfaceEnabled(inst, g, enabled)
         dimRegion(g.edge.top, dim)
         dimGradient(g.edge.glow, dim, (not g.edge.custom) and inst.STYLE.edge * inst.EDGE.glow or nil)
         dimRegion(g.edge.bottom, dim)
+    end
+    if type(g.reflect) == "table" then
+        for _, key in ipairs(REFLECT_KEYS) do
+            local r = g.reflect[key]
+            if r and r.glassStops and (dim or r.glassDim ~= nil) then
+                r.glassDim = dim
+                paintStops(r)
+            end
+        end
     end
     return true
 end

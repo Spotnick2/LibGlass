@@ -2,7 +2,7 @@
 -- Its lines go to the ForeverProbe console and LibGlassProbeDB.log, never to
 -- chat. It is never packaged: the library has no TOC of its own.
 --
--- Two boards, each a plain frame holding glass built by the probe's own
+-- Boards, each a plain frame holding glass built by the probe's own
 -- instances (an instance's setters reach only the surfaces it built):
 -- - compare: probe 4 (r6, #41). Three clean columns that differ only in the
 --   empty-track colour.                      /fp lg show a|b|c|all, next, ...
@@ -10,6 +10,10 @@
 --   Each surface beside a disabled copy, classic and clean, and a strip of
 --   four gradients for the SetAlpha-before-SetGradient question.
 --                                            /fp steps lg r7 walks it
+-- - fill, preview: the bar fill's opacity (#53).
+-- - r9: the reflective shell through Reflect beside the recipe by hand
+--   (#56), and one surface's own rim (SetSurfaceRim, #40).
+--                                            /fp steps lg r9 walks it
 -- The embedded library is this checkout (deploy.ps1). A newer copy in
 -- another addon would win LibStub, so `report` and the procedure's first
 -- step log which MINOR runs.
@@ -190,6 +194,7 @@ end, "0..100: the sample bars' fake health")
 local R = { surfaces = {}, strip = {} }
 local F = { rows = {} }   -- the #53 fill board (below)
 local P                   -- the #53 preview board (below)
+local Q                   -- the r9 board (below)
 
 -- One line per surface: the wash's painted peak (what the gradient was given)
 -- and whether it is shown. The library records the peak as glassPeak and the
@@ -368,6 +373,7 @@ Probe:Command("hide", function()
     if R.root then R.root:Hide() end
     if F.root then F.root:Hide() end
     if P.root then P.root:Hide() end
+    if Q.root then Q.root:Hide() end
 end, "close every board")
 Probe:Command("clear", function() Probe:ClearLog(); say("log cleared") end, "empty the saved log")
 
@@ -604,6 +610,187 @@ Probe:Steps("preview", {
     { text = "Press Finish, then type /reload so the answer and screenshots are saved. (/fp lg preview reopens it any time.)" },
 })
 
+--------------------------------------------------------------------------------
+-- r9: the reflective shell through Reflect (#56) beside the recipe built by
+-- hand, as PetStable's UI.lua builds it (References\LIBGLASS-WINDOW-
+-- STYLING.md), and one surface's own rim (SetSurfaceRim, #40). No backdrop:
+-- the scenery shows through both shells.
+--------------------------------------------------------------------------------
+
+Q = { controls = {} }
+local SHELL_W, SHELL_H, HEADER = 320, 200, 70
+local GOLD = { 1, 0.82, 0.3 }
+
+-- The parts both shells share: tint, wash, edge off, a masked backing.
+local function shellBody(glass, g, host)
+    glass.SetSurfaceTint(g, 0.085, 0.095, 0.115, 0.78)
+    glass.SetWash(g, 0)
+    glass.SetEdge(g, 0, 0, 0)
+    local backing = host:CreateTexture(nil, "BACKGROUND", nil, -7)
+    backing:SetAllPoints(host)
+    backing:AddMaskTexture(g.mask)
+    backing:SetColorTexture(0.03, 0.03, 0.035, 0.55)
+end
+
+local function libShell(glass, host)
+    local g = glass.Apply(host, "large")
+    shellBody(glass, g, host)
+    glass.SetSurfaceAlpha(g, "rim", 0.12)
+    glass.SetSurfaceAlpha(g, "dark", 0.55)
+    glass.SetSurfaceAlpha(g, "grain", 0)
+    glass.SetSurfaceAlpha(g, "shadow", 0.18)
+    glass.Reflect(g, host, { header = HEADER })
+    return g
+end
+
+local function handShell(glass, host)
+    local g = glass.Apply(host, "large")
+    shellBody(glass, g, host)
+    g.rim:SetAlpha(0.12)
+    g.dark:SetAlpha(0.55)
+    g.grain:SetAlpha(0)
+    g.shadow:SetAlpha(0.18)
+    local S = glass.SIZES[g.size]
+    local rim = g.top:CreateTexture(nil, "OVERLAY", nil, 6)
+    rim:SetAllPoints(host)
+    rim:SetTexture(glass.MEDIA .. S.rim)
+    rim:SetTextureSliceMargins(S.rimMargin, S.rimMargin, S.rimMargin, S.rimMargin)
+    rim:SetTextureSliceMode(Enum.UITextureSliceMode.Stretched)
+    rim:SetGradient("VERTICAL", CreateColor(0.55, 0.65, 0.75, 0.035), CreateColor(0.84, 0.88, 0.91, 0.52))
+    local top = g.top:CreateTexture(nil, "OVERLAY", nil, 7)
+    top:SetColorTexture(1, 1, 1, 1)
+    top:SetPoint("TOPLEFT", host, "TOPLEFT", S.maskMargin, -1)
+    top:SetPoint("TOPRIGHT", host, "TOPRIGHT", -S.maskMargin, -1)
+    top:SetHeight(1)
+    top:SetGradient("HORIZONTAL", CreateColor(0.88, 0.91, 0.93, 0.58), CreateColor(0.65, 0.73, 0.8, 0.035))
+    local reflection = host:CreateTexture(nil, "BACKGROUND", nil, -3)
+    reflection:SetColorTexture(1, 1, 1, 1)
+    reflection:AddMaskTexture(g.mask)
+    reflection:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
+    reflection:SetPoint("TOPRIGHT", host, "TOPRIGHT", 0, 0)
+    reflection:SetHeight(HEADER)
+    reflection:SetGradient("VERTICAL", CreateColor(0.77, 0.81, 0.85, 0), CreateColor(0.77, 0.81, 0.85, 0.105))
+    return g
+end
+
+-- What the library painted: each Reflect layer's peak alpha (its gradient's
+-- brighter end, times the dim), and the controls' rims.
+local function r9State()
+    local parts = {}
+    local g = Q.lib
+    if g and g.reflect then
+        local function peak(r)
+            if not r then return "-" end
+            local s = r.glassStops
+            return string.format("%.3f", math.max(s[2][4], s[3][4]) * (r.glassDim or 1))
+        end
+        parts[#parts + 1] = string.format("library shell rim %.3f, lit rim %s, top %s, header %s",
+            g.rim:GetAlpha(), peak(g.reflect.rim), peak(g.reflect.top), peak(g.reflect.header))
+    end
+    if Q.hand then parts[#parts + 1] = string.format("hand shell rim %.3f", Q.hand.rim:GetAlpha()) end
+    for _, c in ipairs(Q.controls) do
+        parts[#parts + 1] = string.format("%s rim %.3f %s", c.name, c.g.rim:GetAlpha(), c.colour)
+    end
+    local line = table.concat(parts, "; ")
+    say("r9: " .. line)
+    return line
+end
+
+local function buildR9()
+    if Q.root then Q.root:Hide() end
+    local lib = LibStub("LibGlass-1.0")
+    local text = lib:New()
+    Q.shellGlass, Q.ctlGlass, Q.controls = lib:New({ preset = "clean" }), lib:New(), {}
+    Q.root = board(text, 700, 430, "LibGlass r9: reflective shell, own rims",
+        "Left: Reflect. Right: the recipe by hand. /fp steps lg r9 walks it")
+    for i, spec in ipairs({ { key = "lib", title = "Library: Reflect", build = libShell },
+                            { key = "hand", title = "By hand: the recipe", build = handShell } }) do
+        local host = CreateFrame("Frame", nil, Q.root)
+        host:SetSize(SHELL_W, SHELL_H)
+        host:SetPoint("TOPLEFT", Q.root, "TOPLEFT", 20 + (i - 1) * (SHELL_W + 20), -84)
+        local g = spec.build(Q.shellGlass, host)
+        Q[spec.key] = g
+        label(text, g.top, spec.title, 14, 16, -14)
+        label(text, g.top, "Header text over the reflection", 12, 16, -38)
+        label(text, g.top, "Reading area: the glow is gone here.", 12, 16, -96)
+        label(text, g.top, "Small help text at 12 px.", 12, 16, -118)
+    end
+    label(text, Q.root, "Controls: default rim | gold rim (SetSurfaceRim) | gold rim, to be disabled", 13, 20, -306)
+    for i, name in ipairs({ "default", "gold", "gold off" }) do
+        local host = CreateFrame("Button", nil, Q.root)
+        host:SetSize(140, 28)
+        host:SetPoint("TOPLEFT", Q.root, "TOPLEFT", 20 + (i - 1) * 160, -330)
+        local g = Q.ctlGlass.Apply(host, "small")
+        if i > 1 then Q.ctlGlass.SetSurfaceRim(g, GOLD[1], GOLD[2], GOLD[3], 1) end
+        label(text, g.top, name, 12, 12, -7)
+        Q.controls[i] = { name = name, g = g, colour = i > 1 and "gold" or "white" }
+    end
+    Q.root:Show()
+    say("r9 board on LibGlass r" .. tostring(minor()))
+    return r9State()
+end
+
+local function needR9() if not Q.root then buildR9() end; Q.root:Show() end
+
+local function setShellEnabled(on)
+    needR9()
+    Q.shellGlass.SetSurfaceEnabled(Q.lib, on)
+    return r9State()
+end
+
+local function setControlRim(a)
+    needR9()
+    Q.ctlGlass.SetRimAlpha(a)
+    return r9State()
+end
+
+local function setControlEnabled(on)
+    needR9()
+    Q.ctlGlass.SetSurfaceEnabled(Q.controls[3].g, on)
+    return r9State()
+end
+
+Probe:Command("r9", function() buildR9() end, "the r9 board, built fresh (/fp steps lg r9 walks it)")
+Probe:Command("shell", function(args) setShellEnabled(args:lower() ~= "off") end,
+    "on|off: the library shell enabled or disabled (its Reflect layers dim)")
+Probe:Command("outline", function(args)
+    local v = tonumber(args)
+    if not v then say("outline 0.2..1 (SetRimAlpha on the r9 controls)") return end
+    setControlRim(v)
+end, "0.2..1: SetRimAlpha on the r9 controls (the gold ones keep their own)")
+
+Probe:Steps("r9", {
+    title = "LibGlass r9: reflective shell, own rims",
+    rev = 1,
+    { text = "Checking which copy of LibGlass is running.", auto = true, run = report,
+      check = function()
+          local m = minor()
+          return type(m) == "number" and m >= 9, "LibGlass r" .. tostring(m)
+      end },
+    { text = "Open the board. Two window shells: the left one built by the library (Reflect), the right one by hand from the styling recipe. Below, three small controls. Drag the board by its header so this panel doesn't cover it, ideally over detailed scenery.",
+      button = "Show board", run = buildR9, screenshot = "r9: the board" },
+    { text = "Do the two shells look the same: the rim brighter along the top and fading down the sides, the fine top line bright on the left, the soft glow behind the header text? Note any difference, however small.",
+      ask = true },
+    { text = "Disable the left shell (SetSurfaceEnabled).", button = "Disable left",
+      run = function() return setShellEnabled(false) end, screenshot = "r9: left shell disabled" },
+    { text = "Is the left shell's light (top rim, top line, header glow) now clearly fainter than the right one's?",
+      ask = true },
+    { text = "Enable it again.", button = "Enable left", run = function() return setShellEnabled(true) end },
+    { text = "Does the left shell match the right one again?", ask = true },
+    { text = "The middle and right controls have a gold rim (SetSurfaceRim). Is it gold, with the rim's shading (brighter along the top) still visible, as on the white one?",
+      ask = true },
+    { text = "Fade the controls' outline to 0.2 (SetRimAlpha, the instance-wide tune).", button = "Outline 0.2",
+      run = function() return setControlRim(0.2) end, screenshot = "r9: outline 0.2" },
+    { text = "Did only the left (white) control's rim fade? The two gold rims have their own alpha and should not change.",
+      ask = true },
+    { text = "Disable the right control.", button = "Disable right",
+      run = function() return setControlEnabled(false) end },
+    { text = "Is the right control's gold rim (and its body) dimmer than the middle one's?", ask = true },
+    { text = "Enable it again.", button = "Enable right", run = function() return setControlEnabled(true) end },
+    { text = "Is it back to the same gold as the middle one?", ask = true },
+    { text = "That's all. Press Finish, then type /reload so the results and screenshots are saved." },
+})
+
 local boot = CreateFrame("Frame")
 Probe:RegisterEvents(boot, { "ADDON_LOADED" })
 boot:SetScript("OnEvent", function(_, _, name)
@@ -614,10 +801,10 @@ boot:SetScript("OnEvent", function(_, _, name)
     Probe:UseLog(LibGlassProbeDB.log, MAX_LOG)
     LibGlassProbeDB.loads = (LibGlassProbeDB.loads or 0) + 1
     say("loaded (" .. LibGlassProbeDB.loads .. " loads), LibGlass r" .. tostring(minor())
-        .. ". /fp lg for the commands, /fp steps lg r7 for the r7 check")
+        .. ". /fp lg for the commands, /fp steps lg r9 for the r9 check")
 end)
 
 NS._test = { Probe = Probe, C = C, R = R, buildR7 = buildR7, setWash = setWash, setDisabled = setDisabled,
              setEdge = setEdge, strongGlow = strongGlow, setBackdrop = setBackdrop, readStrip = readStrip,
              state = state, F = F, buildFill = buildFill, fillState = fillState, startTimer = startTimer,
-             P = P, buildPreview = buildPreview }
+             P = P, buildPreview = buildPreview, Q = Q, buildR9 = buildR9, r9State = r9State }

@@ -253,6 +253,82 @@ check(not P.root:IsShown(), "lg hide closes it too")
 check(shots >= 9, "every screenshot step took its shot (" .. shots .. ")")
 
 ------------------------------------------------------------------------------
+-- The r9 procedure: Reflect beside the recipe by hand (#56), own rims (#40)
+------------------------------------------------------------------------------
+fp("steps lg r9")
+local qrec = ForeverProbeDB.steps.records["LibGlassProbe/r9"]
+check(qrec and qrec.status == "active", "/fp steps lg r9 starts it")
+eq(qrec.results[1].check, "PASS", "step 1 passes on r" .. N)
+S.Run(); shoot()   -- 2: the board
+local Q = T.Q
+check(Q.root and Q.root:IsShown(), "the r9 board")
+local L, H = Q.lib, Q.hand
+check(L.reflect and L.reflect.header and not H.reflect, "the left shell through Reflect, the right one by hand")
+-- The hand-built recipe and Reflect paint the same layers.
+local hand = {}
+for _, w in ipairs(WoW.widgets) do
+    if w._gradient and (w._parent == H.top or w._parent == H.top:GetParent()) and w ~= H.wash and w ~= H.edge.glow then
+        hand[#hand + 1] = w
+    end
+end
+eq(#hand, 3, "the hand shell has three gradient layers")
+local function sig(w)
+    local gr = w._gradient
+    return string.format("%s %s %d %.3f,%.3f,%.3f,%.3f %.3f,%.3f,%.3f,%.3f %s", gr[1], w._layer, w._sublevel,
+        gr[2].r, gr[2].g, gr[2].b, gr[2].a, gr[3].r, gr[3].g, gr[3].b, gr[3].a, tostring(w._file))
+end
+local want = {}
+for _, k in ipairs({ "rim", "top", "header" }) do want[sig(L.reflect[k])] = true end
+for _, w in ipairs(hand) do check(want[sig(w)], "the hand layer matches a Reflect layer: " .. sig(w)) end
+for _, f in ipairs({ "rim", "dark", "grain", "shadow" }) do
+    eq(L[f]._alpha, H[f]._alpha, "SetSurfaceAlpha draws " .. f .. " as the hand recipe")
+end
+eq(L.reflect.header._height, 70, "the header at 70 px, as PetStable")
+check(qrec.results[2].detail:find("library shell rim 0.120, lit rim 0.520, top 0.580, header 0.105", 1, true),
+      "the step records what Reflect painted")
+S.Answer(true)
+S.Run(); shoot()   -- 4: disable the left shell
+near(L.reflect.rim._gradient[3].a, 0.52 * D, "disabled: the lit rim dimmed")
+near(L.reflect.header._gradient[3].a, 0.105 * D, "and the header")
+near(L.rim._alpha, 0.12 * D, "and the own rim")
+S.Answer(true)
+S.Run()   -- 6: enable it
+near(L.reflect.rim._gradient[3].a, 0.52, "enabled: given back")
+eq(L.rim._alpha, 0.12, "the rim at its own alpha")
+S.Answer(true)
+local gold = Q.controls[2].g.rim._vertex
+check(gold[1] == 1 and gold[2] == 0.82 and gold[3] == 0.3, "the gold controls' rims are gold")
+S.Answer(true)
+S.Run(); shoot()   -- 9: outline 0.2
+eq(Q.controls[1].g.rim._alpha, 0.2, "the default control's rim follows SetRimAlpha")
+check(Q.controls[2].g.rim._alpha == 1 and Q.controls[3].g.rim._alpha == 1, "the gold ones keep their own")
+S.Answer(true)
+S.Run()   -- 11: disable the right control
+near(Q.controls[3].g.rim._alpha, D, "the right control dimmed")
+S.Answer(true)
+S.Run()   -- 13: enable it
+eq(Q.controls[3].g.rim._alpha, 1, "back to its own alpha")
+S.Answer(true)
+S.Next()
+eq(qrec.status, "done", "the r9 procedure finishes")
+for i = 1, qrec.count do
+    local r = qrec.results[i]
+    check(r and (r.status == "done" or r.status == "yes" or r.status == "no") and not r.errors,
+          "r9 step " .. i .. " completed without an error")
+end
+local oldQ = Q.root
+fp("lg r9")
+check(not oldQ:IsShown() and Q.root ~= oldQ and Q.root:IsShown(), "lg r9 replaces the board")
+fp("lg shell off")
+near(Q.lib.reflect.top._gradient[3].a, 0.035 * D, "lg shell off")
+fp("lg outline 0.5")
+eq(Q.controls[1].g.rim._alpha, 0.5, "lg outline")
+fp("lg outline x")
+check(logHas("outline 0.2..1"), "a non-number is refused with the usage")
+fp("lg hide")
+check(not Q.root:IsShown(), "lg hide closes it too")
+
+------------------------------------------------------------------------------
 -- Nothing went wrong, nothing went to chat, the log clears in place
 ------------------------------------------------------------------------------
 eq(logCount("ERROR"), 0, "no command or step logged an error")

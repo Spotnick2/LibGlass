@@ -97,6 +97,19 @@ local g3 = B.Apply(newHost(), "small")
 eq(g3.grain._alpha, 0.1, "a STYLE change shows on the next Apply")
 eq(A.STYLE.grain, 0.45, "and stays in that instance")
 
+-- r9: one surface's own rim stays out of both instances' rim tunes; a
+-- reflection is that surface's alone.
+A.SetSurfaceRim(a.g, 1, 0, 0, 0.12)
+A.SetRimAlpha(0.5); B.SetRimAlpha(0.6)
+eq(a.g.rim._alpha, 0.12, "A's own rim kept through both SetRimAlphas")
+eq(b.g.rim._vertex, nil, "B's rim not recoloured")
+eq(b.g.rim._alpha, 0.6, "and following B")
+local rfA = A.Reflect(a.g, newHost(200, 40))
+local nLog = #rfA.rim._log
+B.SetSurfaceEnabled(b.g, false); B.SetEdgeAlpha(0.3); B.SetRimAlpha(1)
+eq(#rfA.rim._log, nLog, "B's setters don't touch A's reflection")
+B.SetSurfaceEnabled(b.g, true)
+
 eq(#LibGlass.instances, 2, "the library knows both instances")
 
 done("test_isolation")
