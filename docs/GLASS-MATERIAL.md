@@ -336,8 +336,18 @@ the two in game, 2026-10-16), with the same values:
 - Once per surface; it errors at the caller's line for a disc, a table that isn't a surface, a
   missing host, `opts` that isn't a table, a `header` that isn't a number from 0 up, or a second
   call, before building anything. No instance setter touches the layers. No new texture, no
-  `OnUpdate`. *In game: the library's layers next to a hand-built copy of the recipe are `/fp steps
-  lg r9`.*
+  `OnUpdate`.
+- **Checked in game (2026-10-16, build 70425, UI scale 0.64), released as r9.**
+  - `/fp steps lg r9` put the library's shell next to the hand-built recipe. The owner saw no
+    difference, over Camp Narache and again over Thunder Bluff.
+  - Disabling dimmed the layers (lit rim 0.52 → 0.13, header glow 0.105 → 0.026), and enabling
+    restored them.
+  - `SetSurfaceRim`'s own-alpha rims held at 1.0 through `SetRimAlpha 0.2` and a disable/enable.
+  - **A colour on a small rim is hard to see.** The first run's gold on `"small"` controls over
+    yellow grass was too faint to judge (`rim5_small` peaks at 106/255). Red on large controls over
+    black read clearly (`/fp steps lg rim`). A consumer colouring a small rim should pick a
+    saturated colour and its own alpha of 1.
+  - The library's region alphas read back as 1/255 steps (`GetAlpha` gave 0.122 for 0.12).
 
 ```lua
 local g = Glass.Apply(window, "large")       -- a clean instance: thin

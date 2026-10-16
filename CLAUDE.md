@@ -13,10 +13,12 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-15): `r8` released** (tag on `7b1b1e6`: the bar fill's opacity is drawn in its
-gradient, so coloured bars are see-through as designed, #53; checked in game with
-`/fp steps lg fill` and `preview`; every tag from r1 has a GitHub Release, #30). GlassUnitFrames'
-`test_frames` still asserts the old fill alpha in three places (GlassUnitFrames#115). `r7` is
+**Status (2026-10-16): `r9` released** (tag on `fcfd472`: `SetSurfaceRim` and `SetSurfaceAlpha`,
+one surface's own rim colour and region alphas, #40; `Reflect`, the reflective shell's layers
+GlassRaidFrames and PetStable built by hand, #56; checked in game on 70425 with
+`/fp steps lg r9` and `rim`; every tag from r1 has a GitHub Release, #30). GlassUnitFrames' suite
+passes against r9 (GlassUnitFrames#115, its r8 fill assertions, is still open). `r8` is `7b1b1e6`
+(the bar fill's opacity is drawn in its gradient, #53). `r7` is
 `7d0dca4` (the disabled look dims the wash and edge glow through their gradients, and `SetWash`,
 #47). `r6` is `9a23930` (the opt-in
 clean preset and independent body opacity, #41). `r5` is `efa8b40`
