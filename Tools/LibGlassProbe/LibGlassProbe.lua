@@ -13,7 +13,8 @@
 -- - fill, preview: the bar fill's opacity (#53).
 -- - r9: the reflective shell through Reflect beside the recipe by hand
 --   (#56), and one surface's own rim (SetSurfaceRim, #40).
---                                            /fp steps lg r9 walks it
+--                                            /fp steps lg r9 walks it;
+--                                            /fp steps lg rim, the rims alone
 -- The embedded library is this checkout (deploy.ps1). A newer copy in
 -- another addon would win LibStub, so `report` and the procedure's first
 -- step log which MINOR runs.
@@ -613,13 +614,15 @@ Probe:Steps("preview", {
 --------------------------------------------------------------------------------
 -- r9: the reflective shell through Reflect (#56) beside the recipe built by
 -- hand, as PetStable's UI.lua builds it (References\LIBGLASS-WINDOW-
--- STYLING.md), and one surface's own rim (SetSurfaceRim, #40). No backdrop:
--- the scenery shows through both shells.
+-- STYLING.md), and one surface's own rim (SetSurfaceRim, #40). No backdrop
+-- behind the shells: the scenery shows through. The controls sit on a black
+-- strip and are large, with a red rim: the first run's small gold rims over
+-- yellow grass were too faint to judge (rim5_small peaks at 106/255).
 --------------------------------------------------------------------------------
 
 Q = { controls = {} }
 local SHELL_W, SHELL_H, HEADER = 320, 200, 70
-local GOLD = { 1, 0.82, 0.3 }
+local RED = { 1, 0.25, 0.2 }
 
 -- The parts both shells share: tint, wash, edge off, a masked backing.
 local function shellBody(glass, g, host)
@@ -701,7 +704,7 @@ local function buildR9()
     local lib = LibStub("LibGlass-1.0")
     local text = lib:New()
     Q.shellGlass, Q.ctlGlass, Q.controls = lib:New({ preset = "clean" }), lib:New(), {}
-    Q.root = board(text, 700, 430, "LibGlass r9: reflective shell, own rims",
+    Q.root = board(text, 700, 470, "LibGlass r9: reflective shell, own rims",
         "Left: Reflect. Right: the recipe by hand. /fp steps lg r9 walks it")
     for i, spec in ipairs({ { key = "lib", title = "Library: Reflect", build = libShell },
                             { key = "hand", title = "By hand: the recipe", build = handShell } }) do
@@ -715,15 +718,19 @@ local function buildR9()
         label(text, g.top, "Reading area: the glow is gone here.", 12, 16, -96)
         label(text, g.top, "Small help text at 12 px.", 12, 16, -118)
     end
-    label(text, Q.root, "Controls: default rim | gold rim (SetSurfaceRim) | gold rim, to be disabled", 13, 20, -306)
-    for i, name in ipairs({ "default", "gold", "gold off" }) do
+    label(text, Q.root, "Controls: default rim | red rim (SetSurfaceRim) | red rim, to be disabled", 13, 20, -306)
+    local strip = Q.root:CreateTexture(nil, "BACKGROUND")
+    strip:SetPoint("TOPLEFT", Q.root, "TOPLEFT", 0, -324)
+    strip:SetPoint("BOTTOMRIGHT", Q.root, "BOTTOMRIGHT")
+    strip:SetColorTexture(0, 0, 0, 0.9)
+    for i, name in ipairs({ "default", "red", "red off" }) do
         local host = CreateFrame("Button", nil, Q.root)
-        host:SetSize(140, 28)
-        host:SetPoint("TOPLEFT", Q.root, "TOPLEFT", 20 + (i - 1) * 160, -330)
-        local g = Q.ctlGlass.Apply(host, "small")
-        if i > 1 then Q.ctlGlass.SetSurfaceRim(g, GOLD[1], GOLD[2], GOLD[3], 1) end
-        label(text, g.top, name, 12, 12, -7)
-        Q.controls[i] = { name = name, g = g, colour = i > 1 and "gold" or "white" }
+        host:SetSize(200, 44)
+        host:SetPoint("TOPLEFT", Q.root, "TOPLEFT", 20 + (i - 1) * 226, -348)
+        local g = Q.ctlGlass.Apply(host, "large")
+        if i > 1 then Q.ctlGlass.SetSurfaceRim(g, RED[1], RED[2], RED[3], 1) end
+        label(text, g.top, name, 13, 16, -14)
+        Q.controls[i] = { name = name, g = g, colour = i > 1 and "red" or "white" }
     end
     Q.root:Show()
     say("r9 board on LibGlass r" .. tostring(minor()))
@@ -757,17 +764,44 @@ Probe:Command("outline", function(args)
     local v = tonumber(args)
     if not v then say("outline 0.2..1 (SetRimAlpha on the r9 controls)") return end
     setControlRim(v)
-end, "0.2..1: SetRimAlpha on the r9 controls (the gold ones keep their own)")
+end, "0.2..1: SetRimAlpha on the r9 controls (the red ones keep their own)")
 
-Probe:Steps("r9", {
+-- The own-rim steps, shared by r9 and the shorter rim procedure.
+local RIM_STEPS = {
+    { text = "Below, on the black strip, the middle and right controls have a red rim (SetSurfaceRim). Is it clearly red, with the rim's shading (brighter along the top) still there, as on the white one?",
+      ask = true },
+    { text = "Fade the controls' outline to 0.2 (SetRimAlpha, the instance-wide tune).", button = "Outline 0.2",
+      run = function() return setControlRim(0.2) end, screenshot = "r9: outline 0.2" },
+    { text = "Did only the left (white) control's rim fade? The two red rims have their own alpha and should not change.",
+      ask = true },
+    { text = "Disable the right control.", button = "Disable right",
+      run = function() return setControlEnabled(false) end, screenshot = "r9: right control disabled" },
+    { text = "Is the right control's red rim (and its body) dimmer than the middle one's?", ask = true },
+    { text = "Enable it again.", button = "Enable right", run = function() return setControlEnabled(true) end },
+    { text = "Is it back to the same red as the middle one?", ask = true },
+    { text = "That's all. Press Finish, then type /reload so the results and screenshots are saved." },
+}
+
+local VERSION_STEP = {
+    text = "Checking which copy of LibGlass is running.", auto = true, run = report,
+    check = function()
+        local m = minor()
+        return type(m) == "number" and m >= 9, "LibGlass r" .. tostring(m)
+    end,
+}
+
+local function procedure(head)
+    local t = {}
+    for k, v in pairs(head) do t[k] = v end
+    for _, step in ipairs(RIM_STEPS) do t[#t + 1] = step end
+    return t
+end
+
+Probe:Steps("r9", procedure({
     title = "LibGlass r9: reflective shell, own rims",
-    rev = 1,
-    { text = "Checking which copy of LibGlass is running.", auto = true, run = report,
-      check = function()
-          local m = minor()
-          return type(m) == "number" and m >= 9, "LibGlass r" .. tostring(m)
-      end },
-    { text = "Open the board. Two window shells: the left one built by the library (Reflect), the right one by hand from the styling recipe. Below, three small controls. Drag the board by its header so this panel doesn't cover it, ideally over detailed scenery.",
+    rev = 2,
+    VERSION_STEP,
+    { text = "Open the board. Two window shells: the left one built by the library (Reflect), the right one by hand from the styling recipe. Below, three controls on a black strip. Drag the board by its header so this panel doesn't cover it, ideally over detailed scenery.",
       button = "Show board", run = buildR9, screenshot = "r9: the board" },
     { text = "Do the two shells look the same: the rim brighter along the top and fading down the sides, the fine top line bright on the left, the soft glow behind the header text? Note any difference, however small.",
       ask = true },
@@ -777,19 +811,17 @@ Probe:Steps("r9", {
       ask = true },
     { text = "Enable it again.", button = "Enable left", run = function() return setShellEnabled(true) end },
     { text = "Does the left shell match the right one again?", ask = true },
-    { text = "The middle and right controls have a gold rim (SetSurfaceRim). Is it gold, with the rim's shading (brighter along the top) still visible, as on the white one?",
-      ask = true },
-    { text = "Fade the controls' outline to 0.2 (SetRimAlpha, the instance-wide tune).", button = "Outline 0.2",
-      run = function() return setControlRim(0.2) end, screenshot = "r9: outline 0.2" },
-    { text = "Did only the left (white) control's rim fade? The two gold rims have their own alpha and should not change.",
-      ask = true },
-    { text = "Disable the right control.", button = "Disable right",
-      run = function() return setControlEnabled(false) end },
-    { text = "Is the right control's gold rim (and its body) dimmer than the middle one's?", ask = true },
-    { text = "Enable it again.", button = "Enable right", run = function() return setControlEnabled(true) end },
-    { text = "Is it back to the same gold as the middle one?", ask = true },
-    { text = "That's all. Press Finish, then type /reload so the results and screenshots are saved." },
-})
+}))
+
+-- The own-rim part of r9 alone, on a fresh board (the first r9 run's small
+-- gold rims were too faint to judge).
+Probe:Steps("rim", procedure({
+    title = "LibGlass r9: own rims (SetSurfaceRim)",
+    rev = 1,
+    VERSION_STEP,
+    { text = "Open the r9 board, built fresh. Drag it by its header so this panel doesn't cover the three controls on the black strip.",
+      button = "Show board", run = buildR9, screenshot = "rim: the controls" },
+}))
 
 local boot = CreateFrame("Frame")
 Probe:RegisterEvents(boot, { "ADDON_LOADED" })
