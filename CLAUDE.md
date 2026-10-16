@@ -76,9 +76,16 @@ side by side.
   `SetWash(g, top)` (r7: one surface's wash peak, 0 hides it). The wash and the edge's glow are
   gradients, which ignore `SetAlpha` (#47): their alpha lives in the gradient, from the peak kept
   on the region as `glassPeak`, and `SetSurfaceEnabled` dims them through it (r7).
+  `SetSurfaceRim(g, r, g, b, a?)` and `SetSurfaceAlpha(g, "rim"|"dark"|"grain"|"shadow", a)` (r9,
+  #40: one surface's rim colour as vertex RGB, and region alphas through `glassBase`, so they hold
+  on a disabled surface; a rim given an alpha is marked `glassOwnAlpha` and `SetRimAlpha` skips it
+  until `SetSurfaceRim(g)`). `Reflect(g, host, opts?) → rf` (r9, #56: the reflective shell's
+  static gradient layers, `g.reflect = { rim, top, header }`, each with its gradient kept as
+  `glassStops`; `SetSurfaceEnabled` dims them through it).
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
   `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
-- **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`,
+- **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`
+  (from r9, `g.reflect.{rim,top,header}`),
   `bar.{glassMask,track,trackClip,overlay,trackColor}`. From r6, `g.size` is the resolved
   texture-set key: clean instances map requested large/small to thin/thin_small;
   Sheen uses that resolved geometry. GlassChat, AltStable, Gnomesweeper and
@@ -198,8 +205,9 @@ plain**: its hook compares RGB and alpha with the last colour (`==`), defaults t
 (`a or 1`) and multiplies the alpha by `fillEnd` (v3 behaviour, kept for parity). Comparing or
 truth-testing a secret throws (porting guide §4, measured), so a secret colour would throw there.
 Supporting secret colours would mean reworking all three, not just the comparison. The tuning
-and per-surface setters (`SetRimAlpha`…, `SetSurfaceTint`, `SetSurfaceEnabled`, `SetWash`) range-check or
-truth-test their arguments, so they take plain values too: secrets belong in bar values only.
+and per-surface setters (`SetRimAlpha`…, `SetSurfaceTint`, `SetSurfaceEnabled`, `SetWash`,
+`SetSurfaceRim`, `SetSurfaceAlpha`) and `Reflect`'s options range-check or truth-test their
+arguments, so they take plain values too: secrets belong in bar values only.
 
 ## Workflow (sibling conventions)
 

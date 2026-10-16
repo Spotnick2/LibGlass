@@ -35,7 +35,7 @@ end]], {
     { "    sheenAlpha = 0.8,\n", "    sheenAlpha = 0.8,\n    probe = 0.5,\n" },
     { "    rimAlpha = 0.7,", "    rimAlpha = 0.33," },
     { "glowh = 4 }", "glowh = 4, probeEdge = 2 }" },
-    { '"SetWash" }', '"SetWash", "Probe" }' },
+    { '"Reflect" }', '"Reflect", "Probe" }' },
     { "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n",
       "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n"
       .. "    { key = \"probe\", style = \"probe\", fn = \"SetRimAlpha\", min = 0, max = 1, label = \"Probe\", help = \"probe\" },\n" },
@@ -292,8 +292,9 @@ do
     check(lib.SIZES == held.SIZES and lib.SIZES.large == held.large and lib.FONTS == held.FONTS,
           "SIZES and FONTS filled in place")
     eq(lib.FUNCTIONS, held.functions, "FUNCTIONS keeps r1's table")
-    eq(#lib.FUNCTIONS, nFunctions + 6, "with r2's, r3's, r5's and r7's names appended")
-    eq(table.concat(lib.FUNCTIONS, ",", nFunctions + 1), "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill,SetWash",
+    eq(#lib.FUNCTIONS, nFunctions + 9, "with r2's, r3's, r5's, r7's and r9's names appended")
+    eq(table.concat(lib.FUNCTIONS, ",", nFunctions + 1),
+       "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill,SetWash,SetSurfaceRim,SetSurfaceAlpha,Reflect",
        "in order")
     check(lib.SIZES.disc and lib.SIZES.disc_small, "SIZES gains the disc sets")
 
@@ -394,6 +395,10 @@ for _, file in ipairs(RELEASES) do
         -- A custom edge the older copy painted, on an enabled surface.
         local gCustom = B.Apply(newHost(), "large")
         B.SetEdge(gCustom, 0.6, 0.2, 0.5)
+        -- r9's per-surface rim and Reflect, on surfaces the older copy built.
+        local gRim = A.Apply(newHost(), "large")
+        local hRef = newHost(300, 200)
+        local gRef = B.Apply(hRef, "large")
         local held = { impl = lib.impl, instances = lib.instances, functions = lib.FUNCTIONS,
                        SIZES = lib.SIZES, STYLE = A.STYLE, setRim = A.TUNABLES[2].set }
         local names = {}
@@ -447,8 +452,25 @@ for _, file in ipairs(RELEASES) do
         check(A.SetWash(g, 0.05), r .. " upgraded: SetWash on an " .. r .. "-built rect")
         near(g.wash._gradient[3].a, 0.05, r .. " upgraded: and paints it")
         A.SetSurfaceEnabled(g, false)
+        -- r9: an own rim alpha, kept from the tunable an older copy's instance holds.
+        check(A.SetSurfaceRim(gRim, 1, 0.5, 0, 0.12), r .. " upgraded: SetSurfaceRim on an " .. r .. "-built rect")
+        eq(gRim.rim._alpha, 0.12, r .. " upgraded: and paints it")
+        check(held.setRim(0.8) and gRim.rim._alpha == 0.12, r .. " upgraded: the held tunable leaves the own rim")
+        near(g.rim._alpha, 0.8 * A.STYLE.disabledAlpha, r .. " upgraded: and still reaches the rest")
+        check(A.SetSurfaceRim(gRim) and gRim.rim._alpha == 0.8, r .. " upgraded: SetSurfaceRim(g) rejoins it")
+        held.setRim(0.6)
+        local rf = B.Reflect(gRef, hRef, { header = 40 })
+        check(rf and gRef.reflect == rf, r .. " upgraded: Reflect on an " .. r .. "-built rect")
+        B.SetSurfaceEnabled(gRef, false)
+        near(rf.rim._gradient[3].a, 0.52 * B.STYLE.disabledAlpha, r .. " upgraded: and its layers dim")
+        B.SetSurfaceEnabled(gRef, true)
+        near(rf.rim._gradient[3].a, 0.52, r .. " upgraded: and come back")
         if gOff then
+            -- r9: an alpha set on a surface the older copy disabled is the one enabling gives back.
+            check(B.SetSurfaceAlpha(gOff, "dark", 0.5), r .. " upgraded: SetSurfaceAlpha on a surface " .. r .. " disabled")
+            near(gOff.dark._alpha, 0.5 * gOff.dark.glassDim, r .. " upgraded: drawn dimmed, by " .. r .. "'s own dim")
             check(B.SetSurfaceEnabled(gOff, true), r .. " upgraded: a surface " .. r .. " disabled is enabled")
+            eq(gOff.dark._alpha, 0.5, r .. " upgraded: with the dark rim set meanwhile")
             near(gOff.wash._gradient[3].a, B.STYLE.wash, r .. " upgraded: its wash painted at the peak")
             check(gOff.wash.glassBase == nil and gOff.wash.glassDim == nil, r .. " upgraded: and " .. r .. "'s record cleared")
             eq(gOff.rim._alpha, 0.7, r .. " upgraded: its rim given back")

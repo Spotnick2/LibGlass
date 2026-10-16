@@ -432,6 +432,243 @@ do
 end
 
 ------------------------------------------------------------------------------
+-- SetSurfaceRim and SetSurfaceAlpha (r9, #40): one surface's rim colour and
+-- alpha, and its plain regions' alphas, without fighting SetRimAlpha or the
+-- disabled look's bookkeeping (what GlassRaidFrames' shell does by hand).
+------------------------------------------------------------------------------
+do
+    local R = LibGlass:New()
+    local D = R.STYLE.disabledAlpha
+    local a, b = R.Apply(newHost(), "large"), R.Apply(newHost(), "large")
+    local disc = R.Disc(newHost(64, 64), "disc_small")
+
+    -- Colour only: vertex RGB, the alpha left to the instance.
+    check(R.SetSurfaceRim(a, 0.2, 0.6, 1), "SetSurfaceRim returns true")
+    local v = a.rim._vertex
+    check(v and v[1] == 0.2 and v[2] == 0.6 and v[3] == 1 and v[4] == 1, "the rim's vertex colour, opaque")
+    eq(a.rim._alpha, 0.7, "a nil alpha keeps the rim's")
+    eq(b.rim._vertex, nil, "the other surface's rim untouched")
+    R.SetRimAlpha(0.5)
+    eq(a.rim._alpha, 0.5, "a colour alone still follows SetRimAlpha")
+
+    -- An alpha: the surface's own, below SetRimAlpha's 0.2 floor too.
+    check(R.SetSurfaceRim(a, 0.2, 0.6, 1, 0.12), "an alpha under 0.2 is taken (GlassRaidFrames' shell)")
+    eq(a.rim._alpha, 0.12, "and drawn")
+    R.SetRimAlpha(0.9)
+    eq(a.rim._alpha, 0.12, "SetRimAlpha leaves an own rim alone")
+    eq(b.rim._alpha, 0.9, "and sets the others")
+    check(R.TUNABLES[2].set(0.8) and a.rim._alpha == 0.12, "the rim tunable too")
+    check(R.SetSurfaceRim(a, 1, 0, 0), "a later colour without an alpha")
+    eq(a.rim._alpha, 0.12, "keeps the own alpha")
+    R.SetRimAlpha(0.6)
+    eq(a.rim._alpha, 0.12, "and it stays the surface's own")
+
+    -- Disabled: the alpha becomes the base enabling gives back.
+    R.SetSurfaceEnabled(a, false)
+    near(a.rim._alpha, 0.12 * D, "disabled: the own rim dimmed")
+    R.SetSurfaceRim(a, 1, 0, 0, 0.3)
+    near(a.rim._alpha, 0.3 * D, "an alpha set while disabled stays dimmed")
+    R.SetSurfaceEnabled(a, true)
+    eq(a.rim._alpha, 0.3, "and enabling gives back the new one")
+
+    -- The built look again: white, the instance's alpha, following SetRimAlpha.
+    check(R.SetSurfaceRim(a), "SetSurfaceRim(g) returns true")
+    v = a.rim._vertex
+    check(v[1] == 1 and v[2] == 1 and v[3] == 1 and v[4] == 1, "white again")
+    eq(a.rim._alpha, 0.6, "at the instance's rimAlpha")
+    R.SetRimAlpha(0.4)
+    eq(a.rim._alpha, 0.4, "following SetRimAlpha again")
+    R.SetSurfaceEnabled(a, false)
+    R.SetSurfaceRim(a)
+    near(a.rim._alpha, 0.4 * D, "a reset while disabled stays dimmed")
+    R.SetSurfaceEnabled(a, true)
+    check(R.SetSurfaceRim(a, nil, nil, nil, 0.5), "no colour with an alpha")
+    v = a.rim._vertex
+    check(v[1] == 1 and v[2] == 1 and v[3] == 1 and a.rim._alpha == 0.5, "is white at that alpha")
+    R.SetSurfaceRim(a)
+
+    -- Refusals change nothing.
+    for _, case in ipairs({ { 0 / 0, 1, 1 }, { 1.5, 1, 1 }, { 1, -0.1, 1 }, { 1, 1, "1" }, { 1, 1, 1, 2 },
+                            { 1, 1, 1, 0 / 0 }, { 1, 1, 1, true }, { 1, 1 } }) do
+        check(R.SetSurfaceRim(a, case[1], case[2], case[3], case[4]) == false,
+              "SetSurfaceRim refuses " .. tostring(case[1]) .. ", " .. tostring(case[2]) .. ", "
+              .. tostring(case[3]) .. ", " .. tostring(case[4]))
+    end
+    check(a.rim._vertex[1] == 1 and a.rim._alpha == 0.4, "a refusal leaves the rim")
+    check(R.SetSurfaceRim({}, 1, 1, 1) == false and R.SetSurfaceRim(nil, 1, 1, 1) == false,
+          "a table that isn't a surface, or nil, is refused")
+    check(R.SetSurfaceRim(disc, 0.9, 0.8, 0.2, 0.5) and disc.rim._vertex[3] == 0.2 and disc.rim._alpha == 0.5,
+          "a disc's rim too")
+
+    -- SetSurfaceAlpha: each plain region, disabled-aware.
+    check(R.SetSurfaceAlpha(b, "dark", 0.55), "SetSurfaceAlpha returns true")
+    eq(b.dark._alpha, 0.55, "the dark rim")
+    check(R.SetSurfaceAlpha(b, "shadow", 0.18) and b.shadow._alpha == 0.18, "the shadow")
+    check(R.SetSurfaceAlpha(b, "grain", 0) and b.grain._alpha == 0, "the grain, 0 included")
+    check(R.SetSurfaceAlpha(b, "rim", 0.12) and b.rim._alpha == 0.12, "the rim")
+    R.SetRimAlpha(0.7)
+    eq(b.rim._alpha, 0.12, "a rim set here is the surface's own")
+    R.SetSurfaceRim(b)
+    eq(b.rim._alpha, 0.7, "until SetSurfaceRim(g)")
+    -- GlassRaidFrames' dance (enable, set, disable again) is no longer needed.
+    R.SetSurfaceEnabled(b, false)
+    R.SetSurfaceAlpha(b, "dark", 0.35)
+    R.SetSurfaceAlpha(b, "grain", 0.2)
+    near(b.dark._alpha, 0.35 * D, "set while disabled: the dark rim stays dimmed")
+    near(b.grain._alpha, 0.2 * D, "and the grain")
+    R.SetSurfaceAlpha(b, "shadow", 0.05)
+    eq(b.shadow._alpha, 0.05, "the shadow isn't dimmed by a disable, so it is drawn as given")
+    R.SetSurfaceEnabled(b, true)
+    eq(b.dark._alpha, 0.35, "enabling gives back the dark rim set meanwhile")
+    eq(b.grain._alpha, 0.2, "and the grain")
+    eq(b.shadow._alpha, 0.05, "the shadow unchanged")
+    for _, part in ipairs({ "tint", "wash", "edge", "top", "mask", "size", 1 }) do
+        check(R.SetSurfaceAlpha(b, part, 0.5) == false, "SetSurfaceAlpha refuses the part " .. tostring(part))
+    end
+    check(R.SetSurfaceAlpha(b, nil, 0.5) == false, "and no part")
+    for _, x in ipairs({ 0 / 0, -0.1, 1.5, "0.5", true }) do
+        check(R.SetSurfaceAlpha(b, "dark", x) == false, "SetSurfaceAlpha refuses " .. tostring(x))
+    end
+    check(R.SetSurfaceAlpha(b, "dark") == false, "and a missing alpha")
+    eq(b.dark._alpha, 0.35, "a refusal leaves the region")
+    check(R.SetSurfaceAlpha({}, "dark", 0.5) == false and R.SetSurfaceAlpha(nil, "dark", 0.5) == false,
+          "a table that isn't a surface, or nil, is refused")
+    check(R.SetSurfaceAlpha(disc, "dark", 0.3) and disc.dark._alpha == 0.3, "a disc's regions too")
+end
+
+------------------------------------------------------------------------------
+-- Reflect (r9, #56): the reflective shell's lit layers, as GlassRaidFrames'
+-- click-casting editor and PetStable build them by hand.
+------------------------------------------------------------------------------
+do
+    local R = LibGlass:New({ preset = "clean" })
+    local D = R.STYLE.disabledAlpha
+    local function stops(r)
+        local gr = r._gradient
+        return { gr[1], gr[2].r, gr[2].g, gr[2].b, gr[2].a, gr[3].r, gr[3].g, gr[3].b, gr[3].a }
+    end
+    local function sameStops(r, want, dim, msg)
+        local got = stops(r)
+        eq(got[1], want[1], msg .. ": orientation")
+        for i = 2, 9 do
+            local w = want[i]
+            if i == 5 or i == 9 then w = w * dim end
+            near(got[i], w, msg .. ": gradient value " .. (i - 1))
+        end
+    end
+    local RIM = { "VERTICAL", 0.55, 0.65, 0.75, 0.035, 0.84, 0.88, 0.91, 0.52 }
+    local TOP = { "HORIZONTAL", 0.88, 0.91, 0.93, 0.58, 0.65, 0.73, 0.8, 0.035 }
+    local HEADER = { "VERTICAL", 0.77, 0.81, 0.85, 0, 0.77, 0.81, 0.85, 0.105 }
+
+    local host = newHost(860, 540)
+    local g = R.Apply(host, "large")
+    local S = R.SIZES[g.size]
+    eq(g.size, "thin", "a clean instance: the thin set")
+    local rf = R.Reflect(g, host, { header = 70 })
+    eq(rf, g.reflect, "Reflect returns g.reflect")
+
+    eq(rf.rim._parent, g.top, "the lit rim on g.top")
+    check(rf.rim._layer == "OVERLAY" and rf.rim._sublevel == 6, "at OVERLAY 6, with the rim")
+    eq(rf.rim._file, R.MEDIA .. "rim_thin", "the surface's own rim file")
+    eq(rf.rim._slice[1], S.rimMargin, "sliced as the rim")
+    eq(rf.rim._points[1][2], g.top, "covering the surface")
+    sameStops(rf.rim, RIM, 1, "the lit rim")
+
+    eq(rf.top._parent, g.top, "the top highlight on g.top")
+    check(rf.top._layer == "OVERLAY" and rf.top._sublevel == 7, "at OVERLAY 7")
+    eq(rf.top._height, 1, "1 px")
+    local p1, p2 = rf.top._points[1], rf.top._points[2]
+    check(p1[1] == "TOPLEFT" and p1[2] == host and p1[4] == S.maskMargin and p1[5] == -1,
+          "inset by the mask's margin, 1 px below the top (left)")
+    check(p2[1] == "TOPRIGHT" and p2[2] == host and p2[4] == -S.maskMargin and p2[5] == -1, "and right")
+    sameStops(rf.top, TOP, 1, "the top highlight")
+
+    eq(rf.header._parent, host, "the header reflection on the host")
+    check(rf.header._layer == "BACKGROUND" and rf.header._sublevel == -3, "at BACKGROUND -3, over the wash")
+    eq(rf.header._masks[1], g.mask, "masked to the body")
+    eq(rf.header._height, 70, "opts.header high")
+    check(rf.header._points[1][1] == "TOPLEFT" and rf.header._points[2][1] == "TOPRIGHT", "along the top")
+    sameStops(rf.header, HEADER, 1, "the header reflection")
+    for _, k in ipairs({ "rim", "top", "header" }) do
+        eq(rf[k]._alpha, nil, k .. ": no SetAlpha (it does nothing on a gradient)")
+    end
+
+    -- No header without opts.header, or with 0; the large set on a classic instance.
+    local C = LibGlass:New()
+    local hc = newHost(300, 200)
+    local gc = C.Apply(hc, "large")
+    local rc = C.Reflect(gc, hc)
+    eq(rc.header, nil, "no opts: no header layer")
+    eq(rc.rim._file, C.MEDIA .. "rim5", "the classic surface's rim file")
+    local h0 = newHost(300, 200)
+    eq(C.Reflect(C.Apply(h0, "small"), h0, { header = 0 }).header, nil, "header 0: none")
+
+    -- The disabled look: every layer through its gradient, then given back.
+    R.SetSurfaceEnabled(g, false)
+    sameStops(rf.rim, RIM, D, "disabled: the lit rim dimmed")
+    sameStops(rf.top, TOP, D, "the top highlight")
+    sameStops(rf.header, HEADER, D, "the header reflection")
+    R.SetSurfaceEnabled(g, false)
+    sameStops(rf.rim, RIM, D, "disabling twice doesn't dim twice")
+    R.SetSurfaceEnabled(g, true)
+    sameStops(rf.rim, RIM, 1, "enabled: the lit rim given back")
+    sameStops(rf.top, TOP, 1, "the top highlight")
+    sameStops(rf.header, HEADER, 1, "the header reflection")
+    -- Enabling an enabled surface leaves a consumer's own gradient (GRF repaints
+    -- its layers per mode between SetSurfaceEnabled(g, true) calls).
+    rf.top:SetGradient("HORIZONTAL", CreateColor(1, 1, 1, 0.45), CreateColor(1, 1, 1, 0.035))
+    R.SetSurfaceEnabled(g, true)
+    near(rf.top._gradient[2].a, 0.45, "enabling an enabled surface doesn't repaint")
+    rf.top:SetShown(false)
+    R.SetSurfaceEnabled(g, false)
+    check(not rf.top:IsShown(), "a hidden layer stays hidden")
+
+    -- A surface disabled before the call: its layers start dimmed.
+    local hd = newHost(300, 200)
+    local gd = R.Apply(hd, "large")
+    R.SetSurfaceEnabled(gd, false)
+    local rd = R.Reflect(gd, hd, { header = 40 })
+    sameStops(rd.rim, RIM, D, "Reflect on a disabled surface: dimmed at once")
+    sameStops(rd.header, HEADER, D, "the header too")
+    R.SetSurfaceEnabled(gd, true)
+    sameStops(rd.top, TOP, 1, "and given back on enable")
+
+    -- The instance's setters leave the layers alone.
+    local before = { #rf.rim._log, #rf.top._log, #rf.header._log }
+    R.SetRimAlpha(0.5); R.SetEdgeAlpha(0.4); R.SetWash(g, 0.1); R.SetSurfaceRim(g, 1, 0, 0, 0.2)
+    check(#rf.rim._log == before[1] and #rf.top._log == before[2] and #rf.header._log == before[3],
+          "SetRimAlpha, SetEdgeAlpha, SetWash and SetSurfaceRim don't touch them")
+
+    -- Bad calls are refused at the call site, before anything is built.
+    local hb = newHost(300, 200)
+    local gb = R.Apply(hb, "large")
+    local square = newHost(64, 64)
+    local nWidgets = #WoW.widgets
+    for _, case in ipairs({
+        { "a nil surface", nil, hb, nil, "rect surface" },
+        { "a table that isn't a surface", {}, hb, nil, "rect surface" },
+        { "a disc", R.Disc(square, "disc_small"), square, nil, "rect surface" },
+        { "a nil host", gb, nil, nil, "host frame" },
+        { "a string for opts", gb, hb, "70", "options table" },
+        { "a negative header", gb, hb, { header = -1 }, "header" },
+        { "a NaN header", gb, hb, { header = 0 / 0 }, "header" },
+        { "an infinite header", gb, hb, { header = math.huge }, "header" },
+        { "a string header", gb, hb, { header = "70" }, "header" },
+        { "a second Reflect", g, host, nil, "already" },
+    }) do
+        nWidgets = #WoW.widgets
+        local ok, err = pcall(function() R.Reflect(case[2], case[3], case[4]) end)
+        check(not ok and tostring(err):find("test_material%.lua:%d+: LibGlass.*" .. case[5]),
+              case[1] .. " is refused at the call site: " .. tostring(err))
+        eq(#WoW.widgets, nWidgets, case[1] .. ": nothing built")
+    end
+    eq(gb.reflect, nil, "and no reflection recorded")
+    local hp = CreateFrame("Button", nil, UIParent)
+    local pill, pg = R.Pill(hp)
+    check(pcall(R.Reflect, pg, pill), "a pill is a rect surface: it takes one")
+end
+
+------------------------------------------------------------------------------
 -- New: a colon call and a known font, or a loud error.
 ------------------------------------------------------------------------------
 local okDot, errDot = pcall(LibGlass.New, { style = { rimAlpha = 1 } })
