@@ -110,7 +110,7 @@ local function scenario(Glass)
         for key in pairs(t) do
             -- Additive settings absent from v3; widget-call parity below still
             -- checks that their defaults do not change the original rendering.
-            if key ~= "disabledAlpha" and key ~= "thinRim" and key ~= "shadowAlpha" then
+            if key ~= "disabledAlpha" and key ~= "thinRim" and key ~= "shadowAlpha" and key ~= "trackLength" then
                 ks[#ks + 1] = key
             end
         end

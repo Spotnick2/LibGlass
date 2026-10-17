@@ -677,4 +677,67 @@ local okFont, errFont = pcall(LibGlass.New, LibGlass, { font = "comic" })
 check(not okFont and tostring(errFont):find("unknown font", 1, true), "an unknown font fails loudly: " .. tostring(errFont))
 eq(LibGlass:New({ font = "friz" }).fontKey, "friz", "a known one is taken")
 
+------------------------------------------------------------------------------
+-- The track ramp's length (r10): 0, the default, is the ramp across the whole
+-- bar as before; a fraction moves it to the fill's moving edge and keeps only
+-- its fade, over that fraction of the bar's (plain) width, which a size hook
+-- follows. Every bar of the instance, live, both ways.
+------------------------------------------------------------------------------
+do
+    local L = LibGlass:New()
+    local h = newHost(300, 60)
+    L.Apply(h, "large")
+    local b = L.Bar(h, 34)
+    local t = b.track
+    eq(L.STYLE.trackLength, 0, "whole bar by default")
+    eq(t._points[1][1], "ALL", "the ramp across the bar")
+    check(not (b._hooks and b._hooks.OnSizeChanged), "no size hook until asked for")
+
+    b:SetWidth(288)
+    check(L.SetTrackLength(0.05), "SetTrackLength(0.05) accepted")
+    eq(t._points[1][1], "TOPLEFT", "the ramp starts")
+    eq(t._points[1][2], b:GetStatusBarTexture(), "at the fill's")
+    eq(t._points[1][3], "TOPRIGHT", "moving edge")
+    eq(t._points[2][3], "BOTTOMRIGHT", "top to bottom")
+    near(t._width, 14.4, "over 5% of the bar")
+    eq(t._texCoord[1], 0.30, "only the texture's fade")
+    eq(t._texCoord[2], 0.85, "to where it is clear")
+    eq(#b._hooks.OnSizeChanged, 1, "a size hook")
+    b._hooks.OnSizeChanged[1](b, 400, 34)
+    near(t._width, 20, "which follows the bar's width")
+    b._hooks.OnSizeChanged[1](b, nil, 34)
+    near(t._width, 20, "an unreadable width changes nothing")
+    L.SetTrackLength(0.1)
+    near(t._width, 28.8, "a new length, at the bar's current width")
+    eq(#b._hooks.OnSizeChanged, 1, "never hooked twice")
+
+    local b2 = L.Bar(h, 10)
+    eq(b2.track._points[1][1], "TOPLEFT", "a bar built later takes the edge ramp")
+    eq(b2.track._texCoord[1], 0.30, "with the fade only")
+
+    check(L.SetTrackLength(0), "0 accepted")
+    eq(t._points[1][1], "ALL", "the whole bar again")
+    eq(t._points[1][2], b, "across the bar")
+    eq(t._texCoord[2], 1, "the whole texture")
+    b._hooks.OnSizeChanged[1](b, 500, 34)
+    near(t._width, 28.8, "the hook leaves a whole-bar ramp alone")
+
+    for _, v in ipairs({ 0 / 0, "0.05", 0.005, 1.5, -1, false }) do
+        check(not L.SetTrackLength(v), "SetTrackLength refuses " .. tostring(v))
+    end
+    check(not L.SetTrackLength(), "and nothing")
+    eq(L.STYLE.trackLength, 0, "a refusal keeps the value")
+
+    -- Isolation: another instance's bars keep their ramp.
+    local O = LibGlass:New()
+    local ob = O.Bar(newHost(100, 20), 10)
+    L.SetTrackLength(0.05)
+    eq(ob.track._points[1][1], "ALL", "another instance's bar is untouched")
+
+    -- A construction setting too.
+    local C = LibGlass:New({ style = { trackLength = 0.2 } })
+    local cb = C.Bar(newHost(100, 20), 10)
+    eq(cb.track._points[1][1], "TOPLEFT", "style = { trackLength } builds edge ramps")
+end
+
 done("test_material")

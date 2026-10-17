@@ -94,6 +94,7 @@ function Methods.SetShown(w, v) w._shown = v and true or false end
 function Methods.IsShown(w) return w._shown end
 function Methods.SetPoint(w, ...) table.insert(w._points, { ... }) end
 function Methods.ClearAllPoints(w) w._points = {} end
+function Methods.SetTexCoord(t, ...) t._texCoord = { ... } end
 function Methods.SetAllPoints(w, rel) table.insert(w._points, { "ALL", rel }) end
 function Methods.SetSize(w, x, y) w._width, w._height = x, y end
 function Methods.SetWidth(w, x) w._width = x end
@@ -167,6 +168,11 @@ function Methods.GetHighlightTexture(b) return b._highlight end
 -- Scripts, text and events: what the probe and its host, ForeverProbe, use
 -- (tests/test_probe.lua). The library itself uses none of them.
 function Methods.SetScript(w, name, fn) w._scripts = w._scripts or {}; w._scripts[name] = fn end
+function Methods.HookScript(w, name, fn)
+    w._hooks = w._hooks or {}
+    w._hooks[name] = w._hooks[name] or {}
+    table.insert(w._hooks[name], fn)
+end
 function Methods.GetScript(w, name) return w._scripts and w._scripts[name] end
 function Methods.SetText(w, text) w._text = text end
 function Methods.GetText(w) return w._text end
