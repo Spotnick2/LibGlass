@@ -13,11 +13,13 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-16): `r9` released** (tag on `fcfd472`: `SetSurfaceRim` and `SetSurfaceAlpha`,
-one surface's own rim colour and region alphas, #40; `Reflect`, the reflective shell's layers
-GlassRaidFrames and PetStable built by hand, #56; checked in game on 70425 with
-`/fp steps lg r9` and `rim`; every tag from r1 has a GitHub Release, #30). GlassUnitFrames' suite
-passes against r9 (GlassUnitFrames#115, its r8 fill assertions, is still open). `r8` is `7b1b1e6`
+**Status (2026-10-17): `r10` released** (tag on `979a1b8`: `SetTrackLength` and
+`STYLE.trackLength`, a bar's track ramp at the fill's moving edge, #60; asked for and checked in
+game on 70450 through GlassUnitFrames' BarProbe and `/glass ramp edge`, GlassUnitFrames#117;
+every tag from r1 has a GitHub Release, #30). `r9` is `fcfd472` (`SetSurfaceRim` and
+`SetSurfaceAlpha`, one surface's own rim colour and region alphas, #40; `Reflect`, the reflective
+shell's layers, #56). GlassUnitFrames' suite passes against r10 (GlassUnitFrames#115, its r8 fill
+assertions, is still open). `r8` is `7b1b1e6`
 (the bar fill's opacity is drawn in its gradient, #53). `r7` is
 `7d0dca4` (the disabled look dims the wash and edge glow through their gradients, and `SetWash`,
 #47). `r6` is `9a23930` (the opt-in

@@ -1,7 +1,7 @@
 -- Shared frozen releases: append here when a release fixture is added.
 RELEASES = { "LibGlass-r1.lua", "LibGlass-r2.lua", "LibGlass-r3.lua", "LibGlass-r4.lua",
              "LibGlass-r5.lua", "LibGlass-r6.lua", "LibGlass-r7.lua", "LibGlass-r8.lua",
-             "LibGlass-r9.lua" }
+             "LibGlass-r9.lua", "LibGlass-r10.lua" }
 
 -- harness.lua: assertions and the library loader. dofile it after wow_stubs.lua.
 -- Run from the repo root so the relative paths resolve.
