@@ -6,8 +6,8 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** r9 released: one surface's own rim colour and region alphas (`SetSurfaceRim`,
-> `SetSurfaceAlpha`), and the reflective window shell built in (`Reflect`).
+> **Status:** r10 released: a bar's track ramp can start at the fill's moving edge and fade out
+> over a fraction of the bar (`SetTrackLength`), instead of spanning the whole bar.
 
 ## Embedding
 
