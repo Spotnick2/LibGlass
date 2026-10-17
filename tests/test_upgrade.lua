@@ -35,7 +35,7 @@ end]], {
     { "    sheenAlpha = 0.8,\n", "    sheenAlpha = 0.8,\n    probe = 0.5,\n" },
     { "    rimAlpha = 0.7,", "    rimAlpha = 0.33," },
     { "glowh = 4 }", "glowh = 4, probeEdge = 2 }" },
-    { '"Reflect" }', '"Reflect", "Probe" }' },
+    { '"SetTrackLength" }', '"SetTrackLength", "Probe" }' },
     { "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n",
       "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n"
       .. "    { key = \"probe\", style = \"probe\", fn = \"SetRimAlpha\", min = 0, max = 1, label = \"Probe\", help = \"probe\" },\n" },
@@ -292,9 +292,9 @@ do
     check(lib.SIZES == held.SIZES and lib.SIZES.large == held.large and lib.FONTS == held.FONTS,
           "SIZES and FONTS filled in place")
     eq(lib.FUNCTIONS, held.functions, "FUNCTIONS keeps r1's table")
-    eq(#lib.FUNCTIONS, nFunctions + 9, "with r2's, r3's, r5's, r7's and r9's names appended")
+    eq(#lib.FUNCTIONS, nFunctions + 10, "with r2's, r3's, r5's, r7's, r9's and r10's names appended")
     eq(table.concat(lib.FUNCTIONS, ",", nFunctions + 1),
-       "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill,SetWash,SetSurfaceRim,SetSurfaceAlpha,Reflect",
+       "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill,SetWash,SetSurfaceRim,SetSurfaceAlpha,Reflect,SetTrackLength",
        "in order")
     check(lib.SIZES.disc and lib.SIZES.disc_small, "SIZES gains the disc sets")
 

@@ -84,6 +84,9 @@ side by side.
   until `SetSurfaceRim(g)`). `Reflect(g, host, opts?) → rf` (r9, #56: the reflective shell's
   static gradient layers, `g.reflect = { rim, top, header }`, each with its gradient kept as
   `glassStops`; `SetSurfaceEnabled` dims them through it).
+  `SetTrackLength(len)` (r10: 0 = the track ramp across the whole bar, the default; a fraction in
+  0.01..1 = only its fade, from the fill's moving edge over that fraction of the bar's width,
+  every bar of the instance, live; also the `STYLE.trackLength` construction key).
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
   `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
 - **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`

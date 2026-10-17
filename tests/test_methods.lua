@@ -107,6 +107,7 @@ eq(um._slice, nil, "Mask with a nil margin is unsliced")
 
 Glass.SetRimAlpha(0.5); Glass.SetFillAlpha(0.5); Glass.SetTrackAlpha(0.5)
 Glass.SetFillEnd(0.5); Glass.SetEdgeAlpha(0.5); Glass.SetFont("friz")
+Glass.SetTrackLength(0.05); Glass.SetTrackLength(0)
 for _, g in ipairs(discs) do eq(g.rim._alpha, 0.5, g.size .. ": SetRimAlpha reaches the disc") end
 
 local n = 0

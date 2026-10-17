@@ -37,7 +37,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 9
+local MAJOR, MINOR = "LibGlass-1.0", 10
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -140,6 +140,8 @@ lib.defaults.STYLE = {
     fillAlpha = 0.60,                    -- bar fill opacity: the scene shows through, text stays opaque
     fillEnd = 1.0,                       -- optional left-to-right fade of the fill (1 = none, as the mockup)
     trackTop = 0.75,                     -- the missing part: the bar's colour fading to clear across the bar
+    trackLength = 0,                     -- r10: 0 = that ramp across the whole bar; a fraction = only its fade,
+                                         -- from the fill's moving edge over that much of the bar (SetTrackLength)
     frost = 0.10,                        -- plus a white frost, 0 at the bottom to this at the top
     sheenAlpha = 0.8,
     edge = 0,                            -- the optional directional edge's top line (0 = off; GlassChat ships 0.45)
@@ -187,7 +189,7 @@ do
     for _, name in ipairs({ "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
                             "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
                             "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled", "Pill", "RelevelPill",
-                            "SetWash", "SetSurfaceRim", "SetSurfaceAlpha", "Reflect" }) do
+                            "SetWash", "SetSurfaceRim", "SetSurfaceAlpha", "Reflect", "SetTrackLength" }) do
         if not have[name] then
             table.insert(lib.FUNCTIONS, name)
             have[name] = true
@@ -336,6 +338,37 @@ local function tintTrack(inst, bar)
     paintFill(inst, bar)
     if bar.track then   -- a bar from older code may lack it
         pcall(bar.track.SetVertexColor, bar.track, c[1], c[2], c[3], st.trackTop)
+    end
+end
+
+-- track_fade: alpha 1 over the first 30% of its width, smoothstep to 0 at 85%.
+local TRACK_FADE_FROM, TRACK_FADE_TO = 0.30, 0.85
+
+-- Where the track's ramp lies (r10). A trackLength of 0: across the whole bar,
+-- the texture whole (as built until r9). A fraction: from the fill's moving
+-- edge, the texture's fade part only, over that fraction of the bar's width,
+-- kept by an OnSizeChanged hook installed the first time (a bar is sized by
+-- its anchors). Its clip still ends it at the bar's end.
+local function placeTrack(inst, bar)
+    local t, state = bar.track, bar.glassState
+    if not (t and state) then return end   -- a bar from older code may lack them
+    local len = inst.STYLE.trackLength or 0
+    t:ClearAllPoints()
+    if len > 0 then
+        local fill = bar:GetStatusBarTexture()
+        t:SetPoint("TOPLEFT", fill, "TOPRIGHT", 0, 0)
+        t:SetPoint("BOTTOMLEFT", fill, "BOTTOMRIGHT", 0, 0)
+        t:SetTexCoord(TRACK_FADE_FROM, TRACK_FADE_TO, 0, 1)
+        state.trackLength = len
+        if not state.sizeHooked then
+            state.sizeHooked = true
+            bar:HookScript("OnSizeChanged", function(self, w) lib.impl.OnBarSize(self, w) end)
+        end
+        lib.impl.OnBarSize(bar, bar:GetWidth())
+    else
+        state.trackLength = nil
+        t:SetAllPoints(bar)
+        t:SetTexCoord(0, 1, 0, 1)
     end
 end
 
@@ -698,6 +731,7 @@ function lib.impl.Bar(inst, parent, height)
     hooksecurefunc(bar, "SetStatusBarColor", function(self, r, g, b, a)
         lib.impl.OnBarColor(self, r, g, b, a)
     end)
+    if (st.trackLength or 0) > 0 then placeTrack(inst, bar) end
 
     local over = CreateFrame("Frame", nil, bar)
     over:SetAllPoints(bar)
@@ -755,6 +789,15 @@ function lib.impl.OnBarHeight(bar, h)
     local state = bar.glassState
     if state and state.inner and type(h) == "number" then
         state.inner:SetHeight(math.max(3, math.floor(h * 0.45)))
+    end
+end
+
+-- r10: the edge ramp's width follows the bar's (plain) width.
+function lib.impl.OnBarSize(bar, w)
+    local state = bar.glassState
+    local len = state and state.trackLength
+    if len and bar.track and type(w) == "number" then
+        bar.track:SetWidth(math.max(1, w * len))
     end
 end
 
@@ -849,6 +892,16 @@ function lib.impl.SetTrackAlpha(inst, a)
     if not inRange(a, 0, 1) then return false end
     inst.STYLE.trackTop = a
     for _, bar in ipairs(inst._bars) do tintTrack(inst, bar) end
+    return true
+end
+
+-- Live: where every bar's track ramp lies (r10). 0 = across the whole bar
+-- (the default); a fraction in 0.01..1 = from the fill's moving edge, fading
+-- to clear over that fraction of the bar.
+function lib.impl.SetTrackLength(inst, len)
+    if len ~= 0 and not inRange(len, 0.01, 1) then return false end
+    inst.STYLE.trackLength = len
+    for _, bar in ipairs(inst._bars) do placeTrack(inst, bar) end
     return true
 end
 
