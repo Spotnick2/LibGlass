@@ -359,6 +359,210 @@ end
 fp("lg hide")
 
 ------------------------------------------------------------------------------
+-- #64: the repaint procedure, end to end
+------------------------------------------------------------------------------
+local PL = T.Pearl
+local function frames(n) for _ = 1, n do clock = clock + 0.1; WoW.tick() end end
+local function noErrors(rec, name)
+    for i = 1, rec.count do
+        local r = rec.results[i]
+        check(r and r.status ~= nil and not r.errors, name .. " step " .. i .. " completed without an error")
+    end
+end
+local function setColours(row)
+    local n = 0
+    for _, c in ipairs(row.bar._log) do if c[1] == "SetStatusBarColor" then n = n + 1 end end
+    return n
+end
+-- The player's health and power are secret: they must reach SetBar untouched.
+rawset(_G, "UnitHealth", function() return WoW.Secret("hp") end)
+rawset(_G, "UnitHealthMax", function() return WoW.Secret("max hp") end)
+rawset(_G, "UnitPower", function() return WoW.Secret("mana") end)
+rawset(_G, "UnitPowerMax", function() return WoW.Secret("max mana") end)
+
+fp("steps lg repaint")
+local prec = ForeverProbeDB.steps.records["LibGlassProbe/repaint"]
+check(prec and prec.status == "active", "/fp steps lg repaint starts it")
+eq(prec.results[1].check, "PASS", "step 1 passes on r" .. N)
+S.Run(); shoot()   -- 2: the board
+local RP = PL.RP
+check(RP.root and RP.root:IsShown(), "the repaint board")
+eq(#RP.rows, 6, "six bars")
+local seen = {}
+for _, row in ipairs(RP.rows) do
+    check(not seen[row.glass], "bar " .. row.key .. " has an instance of its own")
+    seen[row.glass] = true
+    eq(row.glass.STYLE.wash, 0.18, "bar " .. row.key .. ": baseline A's wash")
+    eq(row.glass.STYLE.gloss, 0.25, "and gloss")
+    eq(row.glass.STYLE.fillAlpha, 0.6, "and fill")
+    eq(row.bar.trackClip._alpha, 0.25, "and GlassUnitFrames' quiet track")
+    near(row.bar:GetStatusBarTexture()._gradient[2].a, 0.6, "bar " .. row.key .. " starts painted at 0.6")
+end
+S.Answer(true)
+S.Run()            -- 4: the program
+frames(25)
+check(RP.done and RP.frame == PL.FRAMES, "the program runs " .. PL.FRAMES .. " rendered frames, then stops")
+eq(setColours(RP.rows[1]), 1, "bar 1: coloured once")
+eq(setColours(RP.rows[2]), 1 + PL.FRAMES, "bar 2: the same colour every frame")
+eq(setColours(RP.rows[6]), 1 + PL.FRAMES, "bar 6: every frame too")
+eq(setColours(RP.rows[5]), 1, "bar 5: values only")
+eq(RP.rows[5].bar._value, 60, "bar 5 back at 60 (the stub has no easing enum: SetBar falls back to instant)")
+local c3 = RP.rows[3].bar.trackColor
+check(c3[1] == 1 and c3[2] == 1 and c3[3] == 1, "bar 3 restored to the original colour")
+shoot()            -- 5: the wait completes, then its screenshot
+eq(prec.results[5].status, "done", "the wait step completes once the program is done")
+check(prec.results[5].detail and prec.results[5].detail:find("frame " .. PL.FRAMES, 1, true),
+      "and records the bars after it")
+for _ = 6, 9 do S.Answer(true) end
+local g1 = RP.rows[1].bar:GetStatusBarTexture()._gradient
+local g4 = RP.rows[4].bar:GetStatusBarTexture()._gradient
+S.Run(); shoot()   -- 10: repair bar 4
+check(RP.rows[4].bar:GetStatusBarTexture()._gradient ~= g4, "bar 4's instance repaints its fill")
+check(RP.rows[1].bar:GetStatusBarTexture()._gradient == g1, "and no other bar's")
+S.Answer(true)
+S.Run(); shoot()   -- 12: the scenery
+check(not RP.rows[1].strip[1]:IsShown(), "the stripes are hidden")
+S.Answer(true)
+S.Run()            -- 14: hunter, rebuilt and run
+frames(25); shoot()
+check(RP.root:IsShown() and RP.rows[2].bar.trackColor[1] == 0.67, "rebuilt in hunter green")
+check(RP.rows[1].strip[1]:IsShown(), "with its stripes back")
+S.Answer(true)
+
+-- A stand-in for GlassUnitFrames' player frame: its proxy's instance, a glass
+-- health bar, the loss overlay. The probe may only read it.
+local gufGlass = LibStub("LibGlass-1.0"):New({ preset = "clean", style = { fillAlpha = 0.72 } })
+local gufHost = CreateFrame("Frame", nil, UIParent)
+local liveBar = gufGlass.Bar(gufHost, 30)
+liveBar:SetWidth(280)
+liveBar:SetStatusBarColor(1, 1, 1)
+local lossBar = CreateFrame("StatusBar", nil, liveBar)
+rawset(_G, "GlassUF", { look = "clean", body = "clear", Glass = gufGlass,
+                        Frames = { byUnit = { player = { health = liveBar, lossBar = lossBar } } } })
+local before = #liveBar._log
+S.Run(); shoot()   -- 17: the sample under the player bar
+local LV = PL.LV
+check(LV.root and LV.root:IsShown(), "the live sample")
+eq(LV.glass.STYLE.fillAlpha, 0.72, "on a copy of the live bar's STYLE")
+check(LV.glass.STYLE.tint ~= gufGlass.STYLE.tint, "a copy, not the live table")
+check(LV.glass ~= gufGlass, "and its own instance")
+eq(LV.root._points[1][2], liveBar, "anchored to the live bar")
+eq(LV.bar._width, 280, "as wide as it")
+eq(LV.bar.trackClip._alpha, 0.25, "with the quiet track")
+check(WoW.IsSecret(LV.bar._value) and WoW.IsSecret(LV.bar._max), "bound to the player's health, secret and untouched")
+for i = before + 1, #liveBar._log do
+    local m = liveBar._log[i][1]
+    check(m:match("^Get") or m:match("^Is"), "the live bar is only read: " .. m)
+end
+local colours = setColours({ bar = LV.bar })
+WoW.fire("UNIT_HEALTH", "player")
+eq(setColours({ bar = LV.bar }), colours + 1, "a health event recolours the sample, as the live bar's painter does")
+WoW.fire("UNIT_HEALTH", "target")
+eq(setColours({ bar = LV.bar }), colours + 1, "another unit's event is ignored")
+S.Answer(true)
+local lg = LV.bar:GetStatusBarTexture()._gradient
+S.Run(); shoot()   -- 19: repair the sample
+check(LV.bar:GetStatusBarTexture()._gradient ~= lg, "the sample's fill repainted")
+S.Answer(true)
+S.Run(); shoot()   -- 21: overlays
+check(LV.lossClip:IsShown() and LV.healClip:IsShown(), "the overlays shown")
+S.Answer(true)     -- 22, then 23 logs on arrival
+check(logHas("live: GlassUnitFrames look clean body clear; its STYLE wash=0.18"), "the live bar's settings are logged")
+S.Next()
+eq(prec.status, "done", "the repaint procedure finishes")
+noErrors(prec, "repaint")
+rawset(_G, "GlassUF", nil)
+fp("lg repaint live")
+check(LV.root:IsShown() and logHas("nothing (GlassUnitFrames isn't loaded)"), "without GlassUnitFrames: a sample all the same")
+fp("lg repaint stripes off")
+check(not RP.rows[1].strip[1]:IsShown(), "lg repaint stripes off")
+fp("lg repaint x")
+check(logHas("repaint [white|hunter] | run"), "an unknown argument is refused with the usage")
+
+------------------------------------------------------------------------------
+-- #64: the pearl procedure, end to end
+------------------------------------------------------------------------------
+fp("steps lg pearl")
+local erec = ForeverProbeDB.steps.records["LibGlassProbe/pearl"]
+check(erec and erec.status == "active", "/fp steps lg pearl starts it")
+eq(erec.results[1].check, "PASS", "step 1 passes on r" .. N)
+S.Run(); shoot()   -- 2: the board
+local PB = PL.PB
+local A, P = PB.cols[1], PB.cols[2]
+check(PB.root:IsShown() and A.glass ~= P.glass, "A and P, each with its own instance")
+eq(#A.entries, 12, "a unit frame (2 bars), four raid cells (8), a cast bar and a small bar")
+for _, k in ipairs({ "wash", "gloss", "frost", "innerShadow", "rimAlpha", "fillAlpha", "trackTop" }) do
+    eq(P.glass.STYLE[k], A.glass.STYLE[k], "P starts as A: " .. k)
+end
+eq(A.glass.STYLE.wash, 0.18, "A is the clean + clear baseline")
+local fillFile = A.entries[1].bar:GetStatusBarTexture()._file
+check(fillFile and fillFile:find("bar_fill", 1, true), "the fill keeps bar_fill (no flat replacement)")
+local white = A.entries[1].bar.trackColor
+check(white[1] == 1 and white[2] == 1 and white[3] == 1, "priest white stays white")
+-- Round 1 kept, round 2 reverted, round 3 kept, round 4 skipped.
+S.Run(); shoot()   -- round 1: wash
+eq(PB.cols[2].glass.STYLE.wash, 0.10, "round 1: P's wash 0.10")
+eq(PB.cols[1].glass.STYLE.wash, 0.18, "A's unchanged")
+S.Run(); shoot()   -- 5%
+eq(PB.cols[2].entries[1].bar._value, 5, "health 5%")
+eq(PB.cols[2].entries[2].bar._value, 62, "power stays put")
+S.Answer(true); S.Skip()
+S.Run(); shoot(); S.Run(); shoot()   -- round 2: gloss
+eq(PB.cols[2].glass.STYLE.gloss, 0.15, "round 2: P's gloss 0.15")
+S.Answer(false); S.Run()   -- reverted
+eq(PB.cols[2].glass.STYLE.gloss, 0.25, "reverted: A's gloss again")
+eq(PB.cols[2].glass.STYLE.wash, 0.10, "round 1's wash kept")
+S.Run(); shoot(); S.Run(); shoot(); S.Answer(true); S.Skip()   -- round 3: frost
+eq(PB.cols[2].glass.STYLE.frost, 0.06, "round 3: P's frost 0.06")
+for _ = 1, 4 do S.Skip() end   -- round 4, optional
+eq(PB.cols[2].glass.STYLE.rimAlpha, 0.7, "the rim untouched when round 4 is skipped")
+S.Run(); shoot()   -- 30%
+S.Run(); shoot()   -- 0%
+eq(PB.cols[1].entries[1].bar._value, 0, "health 0%")
+S.Answer(true)
+S.Run(); shoot()   -- rotate
+eq(PB.rotation, 1, "the columns swapped")
+eq(PB.cols[1].frame._points[1][4], 380, "A in the second slot")
+S.Answer(true)
+S.Run(); shoot()   -- live
+local e = PB.cols[2].entries
+check(WoW.IsSecret(e[1].bar._value) and WoW.IsSecret(e[2].bar._value), "live: the unit bars take your health and mana")
+eq(e[11].bar._value, 58, "the cast bar isn't bound")
+local n0 = setColours(e[1])
+WoW.fire("UNIT_HEALTH", "player")
+eq(setColours(e[1]), n0 + 1, "a health event recolours P's bar")
+S.Answer(true)
+S.Run()            -- live off
+eq(PB.cols[2].entries[1].bar._value, 100, "back to the sample value")
+local boundBefore = #PL.LIVE.bound
+WoW.fire("UNIT_HEALTH", "player")
+eq(#PL.LIVE.bound, boundBefore, "nothing of P bound any more")
+S.Next()           -- the auto log step has run; finish
+eq(erec.status, "done", "the pearl procedure finishes")
+eq(erec.count, 28, "28 steps")
+noErrors(erec, "pearl")
+check(logHas("P deltas: wash 0.1, frost 0.06"), "P's final deltas are logged")
+check(logHas("innerShadow=0.15"), "with its full lighting")
+
+fp("lg pearl next")
+eq(PB.view, "a", "lg pearl next: A in place")
+fp("lg pearl next")
+eq(PB.view, "p", "then P at the same position")
+fp("lg pearl set shade 0.2")
+eq(PB.cols[2].glass.STYLE.innerShadow, 0.2, "lg pearl set shade")
+fp("lg pearl set shade off")
+eq(PB.cols[2].glass.STYLE.innerShadow, 0.15, "off gives A's value back")
+fp("lg pearl set bogus 1")
+check(logHas("pearl | a | p | all"), "an unknown knob is refused with the usage")
+fp("lg pearl value 101")
+eq(PB.value, 100, "an out-of-range health is refused")
+fp("lg pearl live on")
+fp("lg hide")
+check(not PB.root:IsShown() and not RP.root:IsShown() and not LV.root:IsShown(), "lg hide closes the #64 boards")
+eq(#PL.LIVE.bound, 0, "and unbinds every live bar")
+for _, k in ipairs({ "UnitHealth", "UnitHealthMax", "UnitPower", "UnitPowerMax" }) do rawset(_G, k, nil) end
+
+------------------------------------------------------------------------------
 -- Nothing went wrong, nothing went to chat, the log clears in place
 ------------------------------------------------------------------------------
 eq(logCount("ERROR"), 0, "no command or step logged an error")
