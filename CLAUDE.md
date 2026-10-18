@@ -48,7 +48,8 @@ packager clones externals anonymously, so it must stay public). License: MIT.
   `AddOns\<Addon>\Libs\LibGlass-1.0` (preflight: XML, Lua, all textures, LICENSE).
 - **`Tools\LibGlassProbe\`**: the developer probe, a ForeverProbe module (`/fp lg`; read
   `C:\Projects\WoW\References\Docs\PROBES.md` before changing it). It embeds this checkout. It holds
-  the r6 track comparison and the r7 disabled-look check (`/fp steps lg r7`). Never packaged.
+  the r6 track comparison and the r7 disabled-look check (`/fp steps lg r7`); `Pearl.lua` holds the
+  #64 procedures (`/fp steps lg repaint`, `/fp steps lg pearl`). Never packaged.
 - **`docs\GLASS-MATERIAL.md`**: the material write-up (moved here from GlassUnitFrames). **Any
   change to `LibGlass.lua`, `Tools/make_textures.py` or the material parameters updates it in
   the same commit.**
