@@ -202,7 +202,7 @@ working), GlassMiniMapBar (orbs keep own path; reads `Glass.STYLE` at build time
 AltStable (drop `Media\Glass`, decide `rimAlpha = 1` to keep the look). Each deletes its
 `test_toc.lua` drift comparison and the copy rule in its CLAUDE.md.
 
-**Phase 4 — `C:\Projects\References\EMBEDDED-LIBRARIES.md`.** Addon-agnostic guide written from
+**Phase 4 — `C:\Projects\WoW\References\Docs\EMBEDDED-LIBRARIES.md`.** Addon-agnostic guide written from
 what LibGlass proved; it **absorbs and replaces** the porting guide's existing "Sharing one
 library across your addons" section (~L390, leave a pointer there), since other sessions edit
 that file. Covers: externals + the CurseForge ignore gotcha, no-TOC libraries can't be packaged

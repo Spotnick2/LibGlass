@@ -311,7 +311,7 @@ is a per-client measurement, and drawn symbols are each consumer's art.
 
 **The reflective shell (r9, #56).** `Glass.Reflect(g, host, opts?) → rf` adds three static layers
 that light a window's rect surface from above. They are the ones GlassRaidFrames' click-casting
-editor and PetStable built by hand from `References\LIBGLASS-WINDOW-STYLING.md` (the owner matched
+editor and PetStable built by hand from `References\Docs\LIBGLASS-WINDOW-STYLING.md` (the owner matched
 the two in game, 2026-10-16), with the same values:
 
 | Layer | Draw layer | Region | Gradient (alpha in its colours) |

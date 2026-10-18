@@ -15,7 +15,7 @@
 --   compare everything the library draws with GlassUnitFrames' Glass.lua v3.
 
 WoW = {}
-WoW.DUMP = os.getenv("LIBGLASS_API_DUMP") or "C:/Projects/WoW/References/forever-api-1.60.1.70338.md"
+WoW.DUMP = os.getenv("LIBGLASS_API_DUMP") or "C:/Projects/WoW/References/Forever/api/forever-api-1.60.1.70338.md"
 
 --------------------------------------------------------------------------------
 -- Secrets
