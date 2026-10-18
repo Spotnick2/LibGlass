@@ -774,14 +774,21 @@ function lib.impl.Bar(inst, parent, height)
     return bar
 end
 
--- The bar hooks' bodies. Only re-tint on an actual change: painters recolour
--- on every health and power event. A 4th (alpha) argument is honoured.
+-- The bar hooks' bodies. The client's SetStatusBarColor sets the fill's
+-- vertex colour, which replaces its gradient, where the fill's opacity lives
+-- (measured on 70450, #64: a bar given the same colour again drew opaque). So
+-- the fill is painted back on every call, once; the track is re-tinted only
+-- on an actual change (painters recolour on every health and power event).
+-- A 4th (alpha) argument is honoured.
 function lib.impl.OnBarColor(bar, r, g, b, a)
     local state = bar.glassState
     if not state then return end
     a = a or 1
     local c = bar.trackColor
-    if c and c[1] == r and c[2] == g and c[3] == b and c[4] == a then return end
+    if c and c[1] == r and c[2] == g and c[3] == b and c[4] == a then
+        paintFill(state.inst, bar)
+        return
+    end
     bar.trackColor = { r, g, b, a }
     tintTrack(state.inst, bar)
 end

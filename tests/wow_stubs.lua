@@ -156,7 +156,16 @@ function Methods.SetStatusBarTexture(b, file)
     return true
 end
 function Methods.GetStatusBarTexture(b) return b._fill end
-function Methods.SetStatusBarColor(b, r, g, bl, a) b._color = { r, g, bl, a } end
+-- The client sets the fill texture's vertex colour, which replaces any
+-- gradient on it: GetVertexColor then reads the colour, and the fill draws
+-- opaque (measured on 70450, #64: /fp steps lg repaint, hunter green).
+function Methods.SetStatusBarColor(b, r, g, bl, a)
+    b._color = { r, g, bl, a }
+    if b._fill then
+        b._fill._gradient = nil
+        b._fill._vertex = { r, g, bl, a or 1 }
+    end
+end
 
 -- Button: its highlight texture (Glass.Pill softens it).
 function Methods.SetHighlightTexture(b, file, blend)

@@ -117,10 +117,23 @@ eq(fillTex._alpha, 0.5, "fill opacity re-applied after a reset")
 -- A caller's alpha is honoured by the fill gradient.
 bar:SetStatusBarColor(0, 1, 0, 0.5)
 near(fillTex._gradient[2].a, 0.25, "SetStatusBarColor's alpha kept, times the fill opacity")
--- The same colour again does no work (painters recolour on every event).
-fillTex._gradient = nil
+-- The same colour again (painters recolour on every event): the client's
+-- SetStatusBarColor replaced the fill's gradient with its vertex colour
+-- (#64), so the fill is painted back, once; the track isn't re-tinted.
+local function count(w, name)
+    local n = 0
+    for _, call in ipairs(w._log) do if call[1] == name then n = n + 1 end end
+    return n
+end
+local grads, tints = count(fillTex, "SetGradient"), count(bar.track, "SetVertexColor")
 bar:SetStatusBarColor(0, 1, 0, 0.5)
-eq(fillTex._gradient, nil, "unchanged colour: no re-tint")
+check(fillTex._gradient ~= nil, "unchanged colour: the fill's gradient painted back")
+near(fillTex._gradient[2].a, 0.25, "at the same opacity")
+eq(count(fillTex, "SetGradient"), grads + 1, "once")
+eq(count(bar.track, "SetVertexColor"), tints, "the track not re-tinted")
+bar:SetStatusBarColor(1, 0, 0, 0.5)
+eq(count(fillTex, "SetGradient"), grads + 2, "a new colour paints the fill once too")
+eq(count(bar.track, "SetVertexColor"), tints + 1, "and re-tints the track")
 check(not Glass.SetFillAlpha(3), "out-of-range fill rejected")
 
 -- The shade keeps 45% of the bar, and the overlay and clip follow the level.
