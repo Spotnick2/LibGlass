@@ -556,6 +556,35 @@ fp("lg pearl set bogus 1")
 check(logHas("pearl | a | p | all"), "an unknown knob is refused with the usage")
 fp("lg pearl value 101")
 eq(PB.value, 100, "an out-of-range health is refused")
+-- A second run of the procedure starts from P = A, whatever an earlier run
+-- or /fp lg pearl set left behind (the module's state outlives a procedure).
+local function pearlBound()
+    local n = 0
+    for _, e in ipairs(PL.LIVE.bound) do if e.owner == "pearl" then n = n + 1 end end
+    return n
+end
+fp("lg pearl set gloss 0.3")
+if PB.rotation == 0 then fp("lg pearl rotate") end
+fp("lg pearl live on")
+check(next(PB.deltas) ~= nil and PB.live and PB.rotation == 1 and pearlBound() > 0,
+      "an earlier comparison left deltas, live bars and a rotation")
+fp("steps lg pearl")
+S.Run(); shoot()   -- 2: the board, from scratch
+eq(next(PB.deltas), nil, "the restarted procedure clears P's deltas")
+check(not PB.live and pearlBound() == 0, "and the live bars")
+eq(PB.rotation, 0, "and the rotation")
+for _, k in ipairs({ "wash", "gloss", "frost", "innerShadow", "rimAlpha", "fillAlpha", "trackTop" }) do
+    eq(PB.cols[2].glass.STYLE[k], PB.cols[1].glass.STYLE[k], "restarted: P starts as A: " .. k)
+end
+S.Run(); shoot()   -- round 1
+for _, k in ipairs({ "gloss", "frost", "innerShadow", "rimAlpha", "fillAlpha", "trackTop" }) do
+    eq(PB.cols[2].glass.STYLE[k], PB.cols[1].glass.STYLE[k], "round 1 changes only the wash: " .. k)
+end
+eq(PB.cols[2].glass.STYLE.wash, 0.10, "round 1: the wash")
+S.Stop()
+fp("lg pearl set gloss 0.3")
+fp("lg pearl")
+eq(PB.deltas.gloss, 0.3, "/fp lg pearl alone keeps the manual settings")
 fp("lg pearl live on")
 fp("lg hide")
 check(not PB.root:IsShown() and not RP.root:IsShown() and not LV.root:IsShown(), "lg hide closes the #64 boards")
