@@ -9,7 +9,7 @@
     Usage, from the repo root:
         pwsh Tools\LibGlassProbe\deploy.ps1
         pwsh Tools\LibGlassProbe\deploy.ps1 -AddOnsPath "D:\...\_classic_beta_\Interface\AddOns"
-    Then /reload in game (a brand-new addon folder included) and /fp steps lg r7.
+    Then /reload in game (a brand-new addon folder included) and /fp steps lg repaint, /fp steps lg pearl.
 #>
 
 param(
@@ -21,15 +21,15 @@ $ErrorActionPreference = "Stop"
 $ProbeDir = $PSScriptRoot
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $ProbeDir)
 $ForeverProbe = if ($env:FOREVERPROBE) { $env:FOREVERPROBE } else { Join-Path (Split-Path -Parent $RepoRoot) "ForeverProbe" }
-$Files = @("LibGlassProbe.toc", "LibGlassProbe.lua")
+$Files = @("LibGlassProbe.toc", "LibGlassProbe.lua", "Pearl.lua")
 
 foreach ($f in $Files) {
     if (-not (Test-Path -LiteralPath (Join-Path $ProbeDir $f))) { Write-Error "Missing probe file: $f"; exit 1 }
 }
 $luac = Join-Path (Split-Path -Parent $Lua) "luac.exe"
 if (Test-Path -LiteralPath $luac) {
-    & $luac -p (Join-Path $ProbeDir "LibGlassProbe.lua")
-    if ($LASTEXITCODE -ne 0) { Write-Error "luac -p failed on LibGlassProbe.lua"; exit 1 }
+    & $luac -p (Join-Path $ProbeDir "LibGlassProbe.lua") (Join-Path $ProbeDir "Pearl.lua")
+    if ($LASTEXITCODE -ne 0) { Write-Error "luac -p failed on the probe's Lua"; exit 1 }
     Remove-Item -LiteralPath "luac.out" -ErrorAction SilentlyContinue
 } else {
     Write-Host "  luac -p SKIPPED (no $luac)" -ForegroundColor Yellow

@@ -375,6 +375,7 @@ Probe:Command("hide", function()
     if F.root then F.root:Hide() end
     if P.root then P.root:Hide() end
     if Q.root then Q.root:Hide() end
+    for _, hide in ipairs(NS.hides) do hide() end
 end, "close every board")
 Probe:Command("clear", function() Probe:ClearLog(); say("log cleared") end, "empty the saved log")
 
@@ -444,13 +445,15 @@ local function fillState()
 end
 
 local function stripes(host, w, h)
-    local n = 12
+    local n, list = 12, {}
     for i = 0, n - 1 do
         local t = host:CreateTexture(nil, "BACKGROUND")
         t:SetSize(w / n, h)
         t:SetPoint("TOPLEFT", host, "TOPLEFT", i * w / n, 0)
         if i % 2 == 0 then t:SetColorTexture(0.95, 0.95, 0.95, 1) else t:SetColorTexture(0, 0, 0, 1) end
+        list[#list + 1] = t
     end
+    return list
 end
 
 -- Built fresh each time: new instances, so SetFillAlpha starts from the values below.
@@ -823,6 +826,10 @@ Probe:Steps("rim", procedure({
       button = "Show board", run = buildR9, screenshot = "rim: the controls" },
 }))
 
+-- What Pearl.lua (loaded next) shares; it adds its boards' hides to NS.hides.
+NS.Probe, NS.say, NS.label, NS.board, NS.stripes, NS.report, NS.minor = Probe, say, label, board, stripes, report, minor
+NS.hides = {}
+
 local boot = CreateFrame("Frame")
 Probe:RegisterEvents(boot, { "ADDON_LOADED" })
 boot:SetScript("OnEvent", function(_, _, name)
@@ -833,7 +840,7 @@ boot:SetScript("OnEvent", function(_, _, name)
     Probe:UseLog(LibGlassProbeDB.log, MAX_LOG)
     LibGlassProbeDB.loads = (LibGlassProbeDB.loads or 0) + 1
     say("loaded (" .. LibGlassProbeDB.loads .. " loads), LibGlass r" .. tostring(minor())
-        .. ". /fp lg for the commands, /fp steps lg r9 for the r9 check")
+        .. ". /fp lg for the commands, /fp steps lg repaint and /fp steps lg pearl for #64")
 end)
 
 NS._test = { Probe = Probe, C = C, R = R, buildR7 = buildR7, setWash = setWash, setDisabled = setDisabled,
