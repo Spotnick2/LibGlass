@@ -678,8 +678,28 @@ local function showPearl()
     return refreshColumns()
 end
 
+-- A guided procedure starts from a known board: no live bars, no rotation.
+-- The module's state outlives a procedure, which may be started again at any
+-- time; /fp lg pearl alone keeps its settings.
+local function freshBoard()
+    if PB.live then
+        PB.live = false
+        liveUnbind("pearl")
+    end
+    PB.rotation = 0
+end
+
+-- The guided Pearl comparison also starts from P = A: no deltas left from an
+-- earlier run or from /fp lg pearl set (Codex review of #65).
+local function startPearl()
+    PB.deltas = {}
+    freshBoard()
+    return showPearl()
+end
+
 -- The r11 board: the same samples, the preset beside the chosen P.
 local function showR11()
+    freshBoard()
     COLUMNS = R11_COLUMNS
     PB.view, PB.value = "all", 100
     return refreshColumns()
@@ -734,14 +754,14 @@ local ROUNDS = {
 
 local steps = {
     title = "LibGlass #64: Pearl, A beside P",
-    rev = 1,
+    rev = 2,
     { text = "Checking which copy of LibGlass is running.", auto = true, run = report,
       check = function()
           local m = minor()
           return type(m) == "number" and m >= 8, "LibGlass r" .. tostring(m)
       end },
     { text = "Open the board: A (today's clean + clear) and P side by side, P identical to A for now. Unit frame, four raid cells, a cast bar, a small bar. The buttons under the header set the health and the view. Drag the board by its header.",
-      button = "Show board", run = showPearl, screenshot = "pearl: A and P, unchanged" },
+      button = "Show board", run = startPearl, screenshot = "pearl: A and P, unchanged" },
 }
 for r, round in ipairs(ROUNDS) do
     steps[#steps + 1] = { text = "Round " .. r .. ": P's " .. round.knob .. " " .. round.from .. " to " .. round.to
@@ -779,7 +799,7 @@ Probe:Steps("pearl", steps)
 -- The check r11 is tagged on: the production code, not the probe's recipe.
 Probe:Steps("r11", {
     title = "LibGlass r11: the Pearl preset and the repaint fix",
-    rev = 2,
+    rev = 3,
     { text = "Checking which copy of LibGlass is running: r11 or later, and this probe's own (another addon's copy of the same MINOR may win the tie).",
       auto = true, run = report,
       check = function()
