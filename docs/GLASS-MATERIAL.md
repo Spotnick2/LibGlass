@@ -195,6 +195,53 @@ were not established by this check; they are left to the consumers' beta. Releas
 The existing probe now uses this API, with track overrides for A/B and neutral C.
 All 27 existing textures and original default rendering remain unchanged.
 
+### Pearl (r11, #64)
+
+`LibStub("LibGlass-1.0"):New({ preset = "pearl" })` is the Glass suite's theme. Glass UI offers it, and
+GlassUnitFrames and GlassRaidFrames build it when they follow (GlassUI#24, `GlassUI/docs/SUITE.md`).
+
+It starts from **A**, the material the owner judged best in the Pearl comparison (run #186, 2026-10-18,
+70450). A was the consumers' loaded clean + clear. Two other candidates were turned down:
+- **B** lowered every light (wash 0.08, gloss 0.08, shade 0.05, frost 0.025) and swapped the fill for a
+  flat WHITE8X8. It flattened the health fills, the raid cells and the cast bars.
+- **C** was B with priest white turned to {0.78, 0.82, 0.87}. It read as grey steel, not pearl.
+
+Pearl changes the upper light and the outline:
+
+| STYLE field | Pearl | Clean | Original default |
+|---|---|---|---|
+| wash | **0.10** | 0.18 | 0.18 |
+| gloss | **0.15** | 0.25 | 0.45 |
+| frost | **0.06** | 0.10 | 0.10 |
+| rimAlpha | **0.6** | 0.7 | 0.7 |
+| innerShadow | 0.15 | 0.15 | 0.35 |
+| grain, trackTop, shadowAlpha, thinRim | as clean | 0, 0, 0.30, true | 0.45, 0.75, 1, false |
+
+What stays the same:
+- the inner shade, the rounded `bar_fill` and the fill opacity, so bars keep their depth;
+- the colours, which are the caller's: priest white stays white.
+
+**Chosen in game, one layer at a time** (`/fp steps lg pearl`, run #192, 2026-10-18, 70450, UI scale
+0.64, Durotar's bright red rock).
+- **The method:** baseline A was frozen as `New({ preset = "clean" })`. Candidate P was A plus one change
+  per round, compared side by side and at the same position. Each round was checked at 100% and 5%
+  health.
+- **The rounds,** all four kept: wash 0.18 → 0.10, then gloss 0.25 → 0.15, then frost 0.10 → 0.06, then
+  the optional rim 0.7 → 0.6.
+- **The owner's answers:**
+  - P read better than A each round: softer highlight, depth kept, priest white and the health boundary
+    clear;
+  - at 30% and 0%, remaining and missing health were clearly apart on the unit frame and the raid cells;
+  - with the columns swapped, P was still preferred;
+  - on the owner's own live health and mana (r11's repaint fix loaded), P's bars followed smoothly and
+    stayed as see-through as A's.
+- **What wasn't covered:** dark scenery wasn't screenshotted (the step texts asked for both; the shots are
+  all bright red rock), and neither was combat. Those are left to Glass UI's S.4-S.7 run with the
+  consumers.
+
+`"classic"` (r11) names the original material: exactly what `New()` builds. `inst.preset` records the
+preset asked for. An instance made by an older copy has none (unknown), and an upgrade never sets one.
+
 ### Original layer stack
 
 On a host frame, bottom to top:
@@ -515,6 +562,17 @@ library.
   own alpha (0.3) drew see-through, because that alpha goes into the gradient. Every Glass bar
   until r7 drew at its colour's alpha, which is 1 for every consumer passing RGB. **r8 draws
   `fillAlpha` in the gradient**, and `SetFillAlpha` repaints it there.
+- **`SetStatusBarColor` replaces the fill's gradient** (measured 2026-10-18, 70450, #64,
+  `/fp steps lg repaint`).
+  - The client sets the fill texture's vertex colour (`GetVertexColor` then reads it), so the gradient,
+    and with it the fill's opacity, is gone.
+  - Until r10, `OnBarColor` skipped an unchanged colour, so a bar recoloured on every event (GlassUnitFrames'
+    and GlassRaidFrames' painters) drew its fill opaque. That is why the live player frame looked whiter
+    than a probe sample coloured once.
+  - **Measured over stripes, in white and in hunter green:** the same colour every frame, or `SetBar` then
+    the same colour, went opaque. Colour once, values only, and a change of colour stayed see-through. A
+    repaint by the bar's own instance mended it.
+  - **r11 paints the fill back on every call, once,** and still re-tints the track only on a change.
 - **Slice margins vs. frame size.** A frame smaller than twice the slice margin still rendered
   in testing, but the corners get squeezed. Use the `small` set below ~40px tall.
 - **Sliced masks fail on boxes small in BOTH directions.** Measured in a sibling glass addon on
@@ -565,4 +623,8 @@ library.
 | LibGlass-1.0 r6 | The opt-in clean preset, `New({ preset = "clean" })`, and an independent body opacity, `bodyAlpha` (#41): thin rims, no grain, softer bars and shadow, neutral empty tracks | No default changes (parity passes, no new runtime texture). **Checked in game** (2026-10-13) with the probe (`Tools/GlassComparison`): clear (0.24) and smoked bodies match the earlier hand recipe, and the neutral track makes remaining health clearer at low fill. Clean discs and Pills weren't part of the check; they are left to the consumers' beta. |
 | LibGlass-1.0 r7 | `SetSurfaceEnabled` dims the wash and the edge's glow through their gradients; `Glass.SetWash(g, top)` (#47) | A gradient texture ignores `SetAlpha` on Forever (measured on the wash in GlassActionBars and Glass Quest Tracker), so a disabled surface's wash and glow never dimmed, and consumers' `g.wash:SetAlpha` themes did nothing. The wash stays a gradient on purpose: making `SetAlpha` work on it would wake those dormant themes (GlassChat's panels would lose their wash) the day any addon shipped the copy. `SetWash` is the opt-in way to change one. No look change for enabled surfaces (parity passes, no new texture). **Checked in game** (2026-10-15, 70374, UI scale 0.64) with the probe's guided procedure (`/fp steps lg r7`, #50), classic and clean, large and small. In the owner's screenshots, a disabled surface's wash is clearly fainter at 0.6 and subtly fainter at the default 0.18. `SetWash(0)` hides it. A disabled surface's top line and strong glow are dimmed; enabling makes the pair match again; a wash set while disabled stays dimmed. The difference holds over scenery and a night sky. At the default edge (0.45) the glow itself is too faint to judge. |
 | LibGlass-1.0 r8 | The bar fill's opacity is drawn in its gradient (#53): colour alpha × `STYLE.fillAlpha` (× `fillEnd` at the edge); `SetFillAlpha` repaints it | **A look change:** every coloured Glass bar becomes 60% see-through, as designed. The probe (`/fp steps lg fill`, 2026-10-15, 70374) measured that until r7 every coloured fill drew opaque, whatever `fillAlpha` said, because v3 set it with `SetAlpha` before the gradient, which the client ignores. The `/glass fill` slider did nothing. The owner compared opaque and 0.6 bars on classic and clean unit samples over scenery (`/fp steps lg preview`) and preferred 0.6. The parity test leaves out the fill's alpha calls and checks the gradient on its own. |
+| LibGlass-1.0 r11 | `New({ preset = "pearl" })` (#64): clean with a softer upper light; `"classic"` names the original material; `inst.preset`. And a fix: `OnBarColor` paints the fill back on every `SetStatusBarColor` | **A visible fix:** the client's `SetStatusBarColor` replaces the fill's gradient (measured, `/fp steps lg repaint`, 2026-10-18, 70450, §6), so every bar a consumer recoloured on each event drew opaque. From r11 those bars draw at `fillAlpha` as designed (r8), from their next colour call. This is not a recipe change: `New()` and `"clean"` are unchanged (parity passes, no new texture). **Pearl chosen in game** (§4, `/fp steps lg pearl`, run #192, 2026-10-18, 70450): every round kept, giving wash 0.10, gloss 0.15, frost 0.06 and rim 0.6. **r11 check** (`/fp steps lg r11`, run #194, 2026-10-18, 70450). The winning copy was AltStableSync's dev deploy of an earlier r11 build (c409232), which had the same MINOR and loaded first. Its `OnBarColor` is this release's, and its Pearl lacked only `rimAlpha 0.6`. Repaint program: all six bars matched, with no opaque bar 2, 4 or 6. The live GlassUnitFrames player bar matched a sample under it. Pearl's bars followed live health and mana and stayed see-through. The preset beside P looked the same, but the step's recipe check failed on the rim (0.7 vs 0.6), from that stale copy. **Lesson:** a dev deploy that takes LibGlass from a checkout on an unreleased branch spreads an unreleased MINOR, and the first copy loaded wins a tie. So the probe now names the winning copy's addon, and r11's first step requires its own. **Passed on the final code** (runs #198-199, 2026-10-18, 70450, AltStableSync disabled):
+- step 1: "r11 from LibGlassProbe";
+- step 2's recipe check: the preset is exactly the chosen recipe, rim 0.6 included;
+- the owner: both columns alike, live health and mana followed and stayed see-through, all six repaint bars alike, and the live GlassUnitFrames player bar matching the sample. |
 | LibGlass-1.0 r10 | `STYLE.trackLength` and `Glass.SetTrackLength(len)`: the track's ramp at the fill's moving edge, fading to clear over a fraction of the bar (GlassUnitFrames #117) | No default change: `trackLength` 0 is the whole-bar ramp, and the parity test passes. Asked for in GlassUnitFrames, where a whole-bar ramp made a 9% mana bar read as half full. The owner compared both in game with GlassUnitFrames' BarProbe (`/fp bar`, sample bars at 5–80%, 70450): both nice, whole bar kept as the default, the edge ramp at 5% offered as an option. **Checked in game** (2026-10-17, 70450) through the library's own path, GlassUnitFrames' `/glass ramp edge` on the deployed r10 code, before tagging. |

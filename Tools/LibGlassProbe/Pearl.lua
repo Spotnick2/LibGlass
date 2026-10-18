@@ -19,13 +19,16 @@
 --   deltas, at the same position. One layer per round. The fill keeps
 --   bar_fill (its rounded shading) and the class colours stay the client's.
 --                                            /fp steps lg pearl walks it
+-- r11: the released recipe, New({ preset = "pearl" }), beside P as the owner
+--   chose it (run #192); then the repaint program and the live sample again,
+--   on r11's OnBarColor.                     /fp steps lg r11 walks it
 --
 -- Bars bound to the player's own health and power get secret values: they go
 -- straight into SetBar, and nothing here reads, compares or prints them.
 
 local _, NS = ...
-local Probe, say, label, board, stripes, report, minor = NS.Probe, NS.say, NS.label, NS.board, NS.stripes,
-    NS.report, NS.minor
+local Probe, say, label, board, stripes, report, minor, winner = NS.Probe, NS.say, NS.label, NS.board,
+    NS.stripes, NS.report, NS.minor, NS.winner
 
 local WHITE = { 1, 1, 1 }              -- priest: the client's class colour
 local HUNTER = { 0.67, 0.83, 0.45 }
@@ -464,10 +467,26 @@ Probe:Steps("repaint", {
 
 local PB = { view = "all", rotation = 0, value = 100, deltas = {}, entries = {} }
 local KNOBS = { wash = "wash", gloss = "gloss", frost = "frost", shade = "innerShadow", rim = "rimAlpha" }
-local COLUMNS = {
-    { key = "a", title = "A  baseline", note = "clean + clear, as run #186" },
-    { key = "p", title = "P  candidate", note = "A plus the deltas below" },
+-- What the owner chose in run #192 (2026-10-18, 70450): every round kept.
+local CHOSEN = { wash = 0.10, gloss = 0.15, frost = 0.06, rimAlpha = 0.6 }
+
+local function pStyle()
+    local st = {}
+    for k, v in pairs(PB.deltas) do st[KNOBS[k]] = v end
+    return st
+end
+
+local PEARL_COLUMNS = {
+    { key = "a", title = "A  baseline", note = "clean + clear, as run #186", make = function() return newA() end },
+    { key = "p", title = "P  candidate", make = function() return newA(pStyle()) end },
 }
+local R11_COLUMNS = {
+    { key = "a", title = "Pearl  the preset", note = 'New({ preset = "pearl" })',
+      make = function() return LibStub("LibGlass-1.0"):New({ preset = "pearl" }) end },
+    { key = "p", title = "P  as chosen", note = "clean + wash .10, gloss .15, frost .06, rim .6",
+      make = function() return newA(CHOSEN) end },
+}
+local COLUMNS = PEARL_COLUMNS
 local CELLS = {
     { name = "Karuzo", c = WHITE },
     { name = "Kaleid", c = HUNTER },
@@ -481,12 +500,6 @@ local function deltaText()
         if PB.deltas[k] ~= nil then parts[#parts + 1] = k .. " " .. PB.deltas[k] end
     end
     return #parts > 0 and table.concat(parts, ", ") or "none (P = A)"
-end
-
-local function pStyle()
-    local st = {}
-    for k, v in pairs(PB.deltas) do st[KNOBS[k]] = v end
-    return st
 end
 
 -- A bar on a sample surface. `kind`: health follows the level; power and
@@ -511,13 +524,13 @@ local function surface(parent, glass, w, h, x, y, size)
 end
 
 local function buildColumn(spec, text)
-    local glass = spec.key == "a" and newA() or newA(pStyle())
+    local glass = spec.make()
     local col = { key = spec.key, glass = glass, entries = {}, texts = {} }
     local f = CreateFrame("Frame", nil, PB.root)
     f:SetSize(344, 370)
     col.frame = f
     label(text, f, spec.title, 15, 0, 0)
-    label(text, f, spec.key == "a" and spec.note or ("deltas: " .. deltaText()), 11, 0, -20)
+    label(text, f, spec.note or ("deltas: " .. deltaText()), 11, 0, -20)
 
     local li, si = glass.Inset("large"), glass.Inset("small")
     local uf, ug = surface(f, glass, 300, 62, 0, -42, "large")
@@ -660,22 +673,46 @@ local function setLive(on)
 end
 
 local function showPearl()
+    COLUMNS = PEARL_COLUMNS
     PB.view, PB.value = "all", 100
     return refreshColumns()
 end
 
--- The guided procedure starts from P = A: no deltas left from an earlier run
--- or from /fp lg pearl set, no live bars, no rotation. The module's state
--- outlives a procedure, which may be started again at any time. /fp lg pearl
--- alone keeps the settings.
-local function startPearl()
-    PB.deltas = {}
+-- A guided procedure starts from a known board: no live bars, no rotation.
+-- The module's state outlives a procedure, which may be started again at any
+-- time; /fp lg pearl alone keeps its settings.
+local function freshBoard()
     if PB.live then
         PB.live = false
         liveUnbind("pearl")
     end
     PB.rotation = 0
+end
+
+-- The guided Pearl comparison also starts from P = A: no deltas left from an
+-- earlier run or from /fp lg pearl set (Codex review of #65).
+local function startPearl()
+    PB.deltas = {}
+    freshBoard()
     return showPearl()
+end
+
+-- The r11 board: the same samples, the preset beside the chosen P.
+local function showR11()
+    freshBoard()
+    COLUMNS = R11_COLUMNS
+    PB.view, PB.value = "all", 100
+    return refreshColumns()
+end
+
+-- PASS when the preset's lighting is exactly the chosen recipe's.
+local function sameRecipe()
+    needPearl()
+    local a, b = PB.cols[1].glass.STYLE, PB.cols[2].glass.STYLE
+    for _, k in ipairs(LIGHTING) do
+        if a[k] ~= b[k] then return false, k .. " differs: " .. Probe.Show(a[k], true) .. " vs " .. Probe.Show(b[k], true) end
+    end
+    return true, lighting(a)
 end
 
 Probe:Command("pearl", function(args)
@@ -759,8 +796,40 @@ local tail = {
 for _, s in ipairs(tail) do steps[#steps + 1] = s end
 Probe:Steps("pearl", steps)
 
+-- The check r11 is tagged on: the production code, not the probe's recipe.
+Probe:Steps("r11", {
+    title = "LibGlass r11: the Pearl preset and the repaint fix",
+    rev = 3,
+    { text = "Checking which copy of LibGlass is running: r11 or later, and this probe's own (another addon's copy of the same MINOR may win the tie).",
+      auto = true, run = report,
+      check = function()
+          local m, host = minor(), winner()
+          return type(m) == "number" and m >= 11 and host == "LibGlassProbe", "LibGlass r" .. tostring(m) .. " from " .. host
+      end },
+    { text = "Open the board: the library's Pearl preset on the left, P as you chose it on the right. Drag it by its header.",
+      button = "Show board", run = showR11, screenshot = "r11: preset beside P", check = sameRecipe },
+    { text = "Do the two columns look the same?", ask = true },
+    { text = "Very low health: 5%.", button = "Health 5", run = function() needPearl(); return setValue(5) end,
+      screenshot = "r11: 5%" },
+    { text = "Bind the bars to your own health and mana, then take some damage or cast something.",
+      button = "Live bars", run = function() return setLive(true) end, screenshot = "r11: live" },
+    { text = "Do the Pearl bars follow your health and mana and stay see-through while they update?", ask = true },
+    { text = "Back to the sample values, and close the board.", button = "Done with it",
+      run = function() setLive(false); PB.root:Hide(); return "closed" end },
+    { text = "The repaint program again, on r11: six bars in white, 20 frames.", button = "Run 20 frames",
+      run = function() buildRepaint(WHITE); return startProgram() end },
+    { text = "Waiting for the 20 frames.", wait = waitProgram, timeout = 10, screenshot = "r11: repaint after 20 frames" },
+    { text = "Do all six bars look the same now (bars 2, 4 and 6 no longer more opaque or whiter than bar 1)?", ask = true },
+    { text = "Your GlassUnitFrames player frame: the sample bar under it again, out of combat.",
+      button = "Sample under player", run = function() RP.root:Hide(); return buildLive() end,
+      screenshot = "r11: live bar and sample" },
+    { text = "Does your live player bar now look like the sample under it (same see-through)?", ask = true },
+    { text = "That's all. Press Finish, then type /reload so the results and screenshots are saved." },
+})
+
 NS._test = NS._test or {}
 NS._test.Pearl = { RP = RP, LV = LV, PB = PB, LIVE = LIVE, buildRepaint = buildRepaint, startProgram = startProgram,
                    repairFour = repairFour, buildLive = buildLive, repairLive = repairLive, setOverlays = setOverlays,
                    showPearl = showPearl, setDelta = setDelta, setValue = setValue, setView = setView,
-                   rotate = rotate, setLive = setLive, pearlState = pearlState, ROUNDS = ROUNDS, FRAMES = FRAMES }
+                   rotate = rotate, setLive = setLive, pearlState = pearlState, ROUNDS = ROUNDS, FRAMES = FRAMES,
+                   showR11 = showR11, sameRecipe = sameRecipe, CHOSEN = CHOSEN }

@@ -79,7 +79,7 @@ eq(C.surfaces[4].g.tint._color[4], 0.5, "smoke: every column's body opacity")
 fp("lg smoke 2")
 eq(C.smoke, 0.5, "out of range is refused")
 fp("lg report")
-check(logHas("LibGlass r" .. N .. " is the loaded copy"), "report names the running copy")
+check(logHas("LibGlass r" .. N .. " is the loaded copy, from LibGlassProbe;"), "report names the running copy and its addon")
 check(logHas("compare: view all, body alpha 0.5, fill 50%"), "and the board's settings")
 
 ------------------------------------------------------------------------------
@@ -589,6 +589,42 @@ fp("lg pearl live on")
 fp("lg hide")
 check(not PB.root:IsShown() and not RP.root:IsShown() and not LV.root:IsShown(), "lg hide closes the #64 boards")
 eq(#PL.LIVE.bound, 0, "and unbinds every live bar")
+------------------------------------------------------------------------------
+-- #64: the r11 check, end to end (the production preset and OnBarColor)
+------------------------------------------------------------------------------
+fp("steps lg r11")
+local orec = ForeverProbeDB.steps.records["LibGlassProbe/r11"]
+check(orec and orec.status == "active", "/fp steps lg r11 starts it")
+eq(orec.results[1].check, N >= 11 and "PASS" or "FAIL", "step 1 needs r11")
+S.Run(); shoot()   -- 2: the preset beside P as chosen
+eq(PB.cols[1].glass.preset, "pearl", "the left column is the library's preset")
+eq(orec.results[2].check, "PASS", "and its lighting is exactly the chosen recipe")
+for k, v in pairs(PL.CHOSEN) do eq(PB.cols[1].glass.STYLE[k], v, "the preset's " .. k) end
+S.Answer(true)
+S.Run(); shoot()   -- 4: 5%
+eq(PB.cols[1].entries[1].bar._value, 5, "health 5%")
+S.Run(); shoot()   -- 5: live
+check(WoW.IsSecret(PB.cols[1].entries[1].bar._value), "the preset's bars take your health")
+S.Answer(true)
+S.Run()            -- 7: closed
+check(not PB.root:IsShown() and #PL.LIVE.bound == 0, "the board closed, nothing bound")
+S.Run()            -- 8: the program on r11
+frames(25); shoot()
+for _, row in ipairs(RP.rows) do
+    local fill = row.bar:GetStatusBarTexture()
+    check(fill._gradient ~= nil, "r11: bar " .. row.key .. "'s fill keeps its gradient through the colour calls")
+end
+S.Answer(true)
+S.Run(); shoot()   -- 11: the live sample
+check(LV.root:IsShown(), "the live sample again")
+S.Answer(true)
+S.Next()
+eq(orec.status, "done", "the r11 procedure finishes")
+noErrors(orec, "r11")
+fp("lg pearl")
+eq(PB.cols[1].glass.preset, "clean", "lg pearl goes back to A beside P")
+fp("lg hide")
+
 for _, k in ipairs({ "UnitHealth", "UnitHealthMax", "UnitPower", "UnitPowerMax" }) do rawset(_G, k, nil) end
 
 ------------------------------------------------------------------------------

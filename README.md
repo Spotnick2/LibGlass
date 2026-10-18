@@ -92,11 +92,35 @@ Glass.SetSurfaceTint(g, 0.13, 0.16, 0.22, 0.8)
 Glass.SetSurfaceTint(g) -- restore its built tint and opacity
 ```
 
+### Pearl (revision 11, opt-in)
+
+```lua
+local Glass = LibStub("LibGlass-1.0"):New({ preset = "pearl" })
+```
+
+Pearl is the Glass suite's theme: clean, with a softer upper light and a quieter outline. The
+changes from clean:
+- body wash 0.18 → 0.10;
+- bar gloss 0.25 → 0.15;
+- bar frost 0.10 → 0.06;
+- outline (`rimAlpha`) 0.7 → 0.6.
+
+Clean's inner shade (0.15), the rounded `bar_fill` texture and the fill opacity stay, so bars keep
+their depth, and the colours are still the caller's (priest white stays white). The body is clear
+(0.24). `style` and `bodyAlpha` override it as for any preset.
+
+`preset = "classic"` is the original material, exactly what `New()` builds. The instance records the
+preset it was asked for as `inst.preset` ("classic" without one). An instance made by an older copy
+has no `inst.preset`: an upgrade never guesses or applies a preset.
+
+Revisions 6 to 10 accept only `"clean"`, so check the active MINOR before asking for `"pearl"` or
+`"classic"`.
+
 ### Functions
 
 `LibStub("LibGlass-1.0"):New(opts?)` returns an instance (`opts.style`: `STYLE` overrides,
 `opts.font`: a `FONTS` key; revision 6 adds `opts.preset = "clean"` and independent
-`opts.bodyAlpha`). Its functions are dot-called:
+`opts.bodyAlpha`; revision 11 adds the presets `"pearl"` and `"classic"`). Its functions are dot-called:
 
 | Function | Since | |
 |---|---|---|

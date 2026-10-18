@@ -62,8 +62,13 @@ never remove, rename or change the meaning of any of these. A breaking change is
 side by side.
 
 - **`LibGlass:New(opts?)`** returns a per-addon **instance**. Opts: `style` (overrides of
-  `STYLE`), `font` (a `FONTS` key), and from r6 `preset` (`"clean"`; anything else errors) and
-  `bodyAlpha` (a plain number in 0..1). Precedence: defaults, preset, `style`, then `bodyAlpha`.
+  `STYLE`), `font` (a `FONTS` key), and from r6 `preset` and `bodyAlpha` (a plain number in 0..1).
+  - Presets: `"clean"` (r6), then `"classic"` and `"pearl"` (r11). Anything else errors. `"classic"` is the
+    defaults alone, exactly `New()`. Pearl is clean with wash 0.10, gloss 0.15, frost 0.06 and
+    rimAlpha 0.6.
+  - Precedence: defaults, preset, `style`, then `bodyAlpha`.
+  - From r11 the instance records `inst.preset`: the name asked for, `"classic"` without one. It is nil
+    on an instance an older copy made, and an upgrade never sets it.
   r6 `STYLE` keys: `thinRim` (Apply and Inset map large/small to thin/thin_small), `shadowAlpha`
   (body shadow, default 1) and `bodyAlpha` (body opacity read at build time, over `tint[4]`;
   nil = the tint's alpha). Construction settings: built surfaces are never restyled.
