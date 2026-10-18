@@ -613,7 +613,7 @@ Probe:Steps("preview", {
 
 --------------------------------------------------------------------------------
 -- r9: the reflective shell through Reflect (#56) beside the recipe built by
--- hand, as PetStable's UI.lua builds it (References\LIBGLASS-WINDOW-
+-- hand, as PetStable's UI.lua builds it (References\Docs\LIBGLASS-WINDOW-
 -- STYLING.md), and one surface's own rim (SetSurfaceRim, #40). No backdrop
 -- behind the shells: the scenery shows through. The controls sit on a black
 -- strip and are large, with a red rim: the first run's small gold rims over
