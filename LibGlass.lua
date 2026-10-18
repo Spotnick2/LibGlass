@@ -1113,14 +1113,15 @@ end
 -- The presets: construction recipes over the defaults (docs/GLASS-MATERIAL.md
 -- section 4). "classic" (r11) is the defaults alone, as with no preset. r6's
 -- clean: thin rims, no grain, softer bars and shadow, neutral empty tracks.
--- r11's pearl: clean with a softer upper light (wash, bar gloss and frost),
--- keeping the bar's rounded fill and its inner shade. Private to this copy:
+-- r11's pearl: clean with a softer upper light (wash, bar gloss and frost)
+-- and a quieter outline, keeping the bar's rounded fill and its inner shade
+-- (chosen in game a layer at a time, /fp steps lg pearl, #64). Private to this copy:
 -- the winning copy's New uses its own, and a built surface is never restyled.
 local PRESETS = {
     classic = {},
     clean = { grain = 0, gloss = 0.25, innerShadow = 0.15, trackTop = 0, shadowAlpha = 0.30, thinRim = true },
 }
-PRESETS.pearl = fill(fill({}, PRESETS.clean), { wash = 0.10, gloss = 0.15, frost = 0.06 })
+PRESETS.pearl = fill(fill({}, PRESETS.clean), { wash = 0.10, gloss = 0.15, frost = 0.06, rimAlpha = 0.6 })
 
 -- A per-addon instance: its own STYLE (defaults, opts.preset, opts.style,
 -- then opts.bodyAlpha as an independent body opacity), EDGE,

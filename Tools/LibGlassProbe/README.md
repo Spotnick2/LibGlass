@@ -131,6 +131,17 @@ What the fill run measured (2026-10-15) is in `docs/GLASS-MATERIAL.md` §6.
 - **The record:** every step logs P's full lighting, so the chosen numbers are read from
   `LibGlassProbe.lua` in SavedVariables.
 
+**`r11`: the check r11 is tagged on.**
+- The library's `New({ preset = "pearl" })` beside P as chosen in run #192. A check fails the step if
+  their lighting differs.
+- Then 5% health and live bars.
+- Then the repaint program and the live GlassUnitFrames sample again, on r11's `OnBarColor`.
+
+**What the runs found (2026-10-18, 70450):**
+- `repaint` (run #190) confirmed that `SetStatusBarColor` replaces the fill's gradient. See
+  `docs/GLASS-MATERIAL.md` §6.
+- `pearl` (run #192) kept every round. See §4.
+
 Commands:
 - `/fp lg repaint [white|hunter] | run | repair | stripes on|off | live | fix | overlays on|off | report`
 - `/fp lg pearl | a | p | all | next | rotate | value 0..100 | set wash|gloss|frost|shade|rim 0..1|off |

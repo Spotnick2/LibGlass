@@ -98,10 +98,12 @@ Glass.SetSurfaceTint(g) -- restore its built tint and opacity
 local Glass = LibStub("LibGlass-1.0"):New({ preset = "pearl" })
 ```
 
-Pearl is the Glass suite's theme: clean, with a softer upper light. The changes from clean:
+Pearl is the Glass suite's theme: clean, with a softer upper light and a quieter outline. The
+changes from clean:
 - body wash 0.18 → 0.10;
 - bar gloss 0.25 → 0.15;
-- bar frost 0.10 → 0.06.
+- bar frost 0.10 → 0.06;
+- outline (`rimAlpha`) 0.7 → 0.6.
 
 Clean's inner shade (0.15), the rounded `bar_fill` texture and the fill opacity stay, so bars keep
 their depth, and the colours are still the caller's (priest white stays white). The body is clear

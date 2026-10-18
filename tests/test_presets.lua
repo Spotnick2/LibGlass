@@ -20,13 +20,14 @@ for k, v in pairs(lib.defaults.STYLE) do
     if type(v) ~= "table" then eq(classic.STYLE[k], v, "classic is the defaults: " .. k) end
 end
 -- Pearl: clean, with the softer upper light.
-local PEARL = { wash = 0.10, gloss = 0.15, frost = 0.06 }
+local PEARL = { wash = 0.10, gloss = 0.15, frost = 0.06, rimAlpha = 0.6 }
 for k, v in pairs(clean.STYLE) do
     if type(v) ~= "table" then eq(pearl.STYLE[k], PEARL[k] or v, "pearl is clean but its light: " .. k) end
 end
 eq(pearl.STYLE.innerShadow, 0.15, "pearl keeps clean's inner shade (the depth)")
 eq(pearl.STYLE.fillAlpha, 0.60, "and the fill opacity")
 eq(pearl.STYLE.thinRim, true, "and the thin rims")
+eq(surface(pearl).rim._alpha, 0.6, "its quieter outline drawn")
 eq(clean.STYLE.wash, 0.18, "clean itself is unchanged")
 eq(clean.STYLE.gloss, 0.25, "clean's gloss unchanged")
 
