@@ -6,6 +6,7 @@
 -- frames, and needs only the textures in Media\.
 --
 --   local Glass = LibStub("LibGlass-1.0"):New(opts?)   -- one instance per addon
+--   LibStub("LibGlass-1.0"):New({ preset = "pearl" })  -- r11: the suite's Pearl material
 --   local g = Glass.Apply(frame, "large")              -- dot-called, as before
 --   local d = Glass.Disc(square, "disc")               -- r2: the round variant
 --   Glass.SetSurfaceTint(g, r, g, b, a)                -- r3: one surface's own tint
@@ -37,7 +38,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 10
+local MAJOR, MINOR = "LibGlass-1.0", 11
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -1102,10 +1103,24 @@ function lib.impl.Migrate(inst)
     return inst
 end
 
+-- The presets: construction recipes over the defaults (docs/GLASS-MATERIAL.md
+-- section 4). "classic" (r11) is the defaults alone, as with no preset. r6's
+-- clean: thin rims, no grain, softer bars and shadow, neutral empty tracks.
+-- r11's pearl: clean with a softer upper light (wash, bar gloss and frost),
+-- keeping the bar's rounded fill and its inner shade. Private to this copy:
+-- the winning copy's New uses its own, and a built surface is never restyled.
+local PRESETS = {
+    classic = {},
+    clean = { grain = 0, gloss = 0.25, innerShadow = 0.15, trackTop = 0, shadowAlpha = 0.30, thinRim = true },
+}
+PRESETS.pearl = fill(fill({}, PRESETS.clean), { wash = 0.10, gloss = 0.15, frost = 0.06 })
+
 -- A per-addon instance: its own STYLE (defaults, opts.preset, opts.style,
 -- then opts.bodyAlpha as an independent body opacity), EDGE,
 -- fontKey (opts.font), TUNABLES and surfaces. Shared read-only: MEDIA, SIZES,
--- FONTS, TRACK_LEVEL, OVERLAY_LEVEL.
+-- FONTS, TRACK_LEVEL, OVERLAY_LEVEL. inst.preset (r11) is the preset asked
+-- for, "classic" without one; an instance an older copy made has none (nil:
+-- unknown), and an upgrade never sets it.
 function lib:New(opts)
     if self ~= lib then
         error(MAJOR .. ': call it as LibStub("LibGlass-1.0"):New(opts), with a colon', 2)
@@ -1116,8 +1131,8 @@ function lib:New(opts)
             .. " (ready = " .. tostring(lib.ready) .. "); see the first error this session", 2)
     end
     opts = opts or {}
-    if opts.preset ~= nil and opts.preset ~= "clean" then
-        error(MAJOR .. ": unknown preset " .. tostring(opts.preset) .. ' (use "clean" or omit it)', 2)
+    if opts.preset ~= nil and not PRESETS[opts.preset] then
+        error(MAJOR .. ": unknown preset " .. tostring(opts.preset) .. ' (use "classic", "clean" or "pearl", or omit it)', 2)
     end
     if opts.bodyAlpha ~= nil and not inRange(opts.bodyAlpha, 0, 1) then
         error(MAJOR .. ": bodyAlpha must be a plain number in 0..1", 2)
@@ -1125,13 +1140,10 @@ function lib:New(opts)
     if opts.font ~= nil and not lib.FONTS[opts.font] then
         error(MAJOR .. ": unknown font " .. tostring(opts.font) .. " (see FONTS)", 2)
     end
-    local inst = { STYLE = fill({}, lib.defaults.STYLE), fontKey = opts.font }
+    local inst = { STYLE = fill({}, lib.defaults.STYLE), fontKey = opts.font, preset = opts.preset or "classic" }
     -- Opt-in only. Explicit style overrides win; opacity is independent of
     -- the preset and applied last so a caller can keep its own tint RGB.
-    if opts.preset == "clean" then
-        fill(inst.STYLE, { grain = 0, gloss = 0.25, innerShadow = 0.15,
-                          trackTop = 0, shadowAlpha = 0.30, thinRim = true })
-    end
+    fill(inst.STYLE, PRESETS[inst.preset])
     if opts.style then fill(inst.STYLE, opts.style) end
     if opts.bodyAlpha ~= nil then inst.STYLE.bodyAlpha = opts.bodyAlpha end
     lib.impl.Migrate(inst)

@@ -195,6 +195,38 @@ were not established by this check; they are left to the consumers' beta. Releas
 The existing probe now uses this API, with track overrides for A/B and neutral C.
 All 27 existing textures and original default rendering remain unchanged.
 
+### Pearl (r11, #64)
+
+`LibStub("LibGlass-1.0"):New({ preset = "pearl" })` is the Glass suite's theme. Glass UI offers it, and
+GlassUnitFrames and GlassRaidFrames build it when they follow (GlassUI#24, `GlassUI/docs/SUITE.md`).
+
+It starts from **A**, the material the owner judged best in the Pearl comparison (run #186, 2026-10-18,
+70450). A was the consumers' loaded clean + clear. Two other candidates were turned down:
+- **B** lowered every light (wash 0.08, gloss 0.08, shade 0.05, frost 0.025) and swapped the fill for a
+  flat WHITE8X8. It flattened the health fills, the raid cells and the cast bars.
+- **C** was B with priest white turned to {0.78, 0.82, 0.87}. It read as grey steel, not pearl.
+
+Pearl changes only the upper light:
+
+| STYLE field | Pearl | Clean | Original default |
+|---|---|---|---|
+| wash | **0.10** | 0.18 | 0.18 |
+| gloss | **0.15** | 0.25 | 0.45 |
+| frost | **0.06** | 0.10 | 0.10 |
+| innerShadow | 0.15 | 0.15 | 0.35 |
+| grain, trackTop, shadowAlpha, thinRim | as clean | 0, 0, 0.30, true | 0.45, 0.75, 1, false |
+
+What stays the same:
+- the inner shade, the rounded `bar_fill` and the fill opacity, so bars keep their depth;
+- the colours, which are the caller's: priest white stays white.
+
+**These numbers are provisional.** They are the starting candidate of the probe's `/fp steps lg pearl`
+(one layer per round, each kept or reverted on the owner's answer). They get replaced by what the owner
+chooses before r11 is tagged.
+
+`"classic"` (r11) names the original material: exactly what `New()` builds. `inst.preset` records the
+preset asked for. An instance made by an older copy has none (unknown), and an upgrade never sets one.
+
 ### Original layer stack
 
 On a host frame, bottom to top:
@@ -565,4 +597,5 @@ library.
 | LibGlass-1.0 r6 | The opt-in clean preset, `New({ preset = "clean" })`, and an independent body opacity, `bodyAlpha` (#41): thin rims, no grain, softer bars and shadow, neutral empty tracks | No default changes (parity passes, no new runtime texture). **Checked in game** (2026-10-13) with the probe (`Tools/GlassComparison`): clear (0.24) and smoked bodies match the earlier hand recipe, and the neutral track makes remaining health clearer at low fill. Clean discs and Pills weren't part of the check; they are left to the consumers' beta. |
 | LibGlass-1.0 r7 | `SetSurfaceEnabled` dims the wash and the edge's glow through their gradients; `Glass.SetWash(g, top)` (#47) | A gradient texture ignores `SetAlpha` on Forever (measured on the wash in GlassActionBars and Glass Quest Tracker), so a disabled surface's wash and glow never dimmed, and consumers' `g.wash:SetAlpha` themes did nothing. The wash stays a gradient on purpose: making `SetAlpha` work on it would wake those dormant themes (GlassChat's panels would lose their wash) the day any addon shipped the copy. `SetWash` is the opt-in way to change one. No look change for enabled surfaces (parity passes, no new texture). **Checked in game** (2026-10-15, 70374, UI scale 0.64) with the probe's guided procedure (`/fp steps lg r7`, #50), classic and clean, large and small. In the owner's screenshots, a disabled surface's wash is clearly fainter at 0.6 and subtly fainter at the default 0.18. `SetWash(0)` hides it. A disabled surface's top line and strong glow are dimmed; enabling makes the pair match again; a wash set while disabled stays dimmed. The difference holds over scenery and a night sky. At the default edge (0.45) the glow itself is too faint to judge. |
 | LibGlass-1.0 r8 | The bar fill's opacity is drawn in its gradient (#53): colour alpha × `STYLE.fillAlpha` (× `fillEnd` at the edge); `SetFillAlpha` repaints it | **A look change:** every coloured Glass bar becomes 60% see-through, as designed. The probe (`/fp steps lg fill`, 2026-10-15, 70374) measured that until r7 every coloured fill drew opaque, whatever `fillAlpha` said, because v3 set it with `SetAlpha` before the gradient, which the client ignores. The `/glass fill` slider did nothing. The owner compared opaque and 0.6 bars on classic and clean unit samples over scenery (`/fp steps lg preview`) and preferred 0.6. The parity test leaves out the fill's alpha calls and checks the gradient on its own. |
+| LibGlass-1.0 r11 | `New({ preset = "pearl" })` (#64): clean with a softer upper light; `"classic"` names the original material; `inst.preset` | No default change: `New()` and `"clean"` are unchanged (parity passes, no new texture). **Not yet checked in game:** the numbers are the probe's starting candidate until the owner's `/fp steps lg pearl` run; this row records the choice and the r11 check. |
 | LibGlass-1.0 r10 | `STYLE.trackLength` and `Glass.SetTrackLength(len)`: the track's ramp at the fill's moving edge, fading to clear over a fraction of the bar (GlassUnitFrames #117) | No default change: `trackLength` 0 is the whole-bar ramp, and the parity test passes. Asked for in GlassUnitFrames, where a whole-bar ramp made a 9% mana bar read as half full. The owner compared both in game with GlassUnitFrames' BarProbe (`/fp bar`, sample bars at 5–80%, 70450): both nice, whole bar kept as the default, the edge ramp at 5% offered as an option. **Checked in game** (2026-10-17, 70450) through the library's own path, GlassUnitFrames' `/glass ramp edge` on the deployed r10 code, before tagging. |
