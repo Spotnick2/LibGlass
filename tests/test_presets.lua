@@ -124,29 +124,34 @@ near(rf.rim._gradient[3].a, 0.52, "and comes back")
 
 ------------------------------------------------------------------------------
 -- Older copies: an upgrade never names an instance's preset, nor restyles it
+-- (the releases before presets were recorded: r1-r10)
 ------------------------------------------------------------------------------
 for _, file in ipairs(RELEASES) do
-    WoW.reset(); WoW.resetLibStub()
-    local oldLib = loadCopy(fixtureCopy(file), "OldHost")
-    local hasClean = file ~= "LibGlass-r1.lua" and file ~= "LibGlass-r2.lua" and file ~= "LibGlass-r3.lua"
-        and file ~= "LibGlass-r4.lua" and file ~= "LibGlass-r5.lua"
-    local oldClassic = oldLib:New({ style = { rimAlpha = 0.5 } })
-    local oldClean = hasClean and oldLib:New({ preset = "clean", style = { gloss = 0.4 } }) or nil
-    local held = oldClean and oldClean.STYLE.gloss
-    local cur = loadLibrary("NewHost")
-    eq(rawget(oldClassic, "preset"), nil, file .. ": an older instance's preset is unknown (nil)")
-    eq(oldClassic.STYLE.rimAlpha, 0.5, file .. ": its override kept")
-    if oldClean then
-        eq(rawget(oldClean, "preset"), nil, file .. ": an older clean instance isn't named either")
-        eq(oldClean.STYLE.gloss, held, file .. ": its override kept")
-        eq(oldClean.STYLE.wash, 0.18, file .. ": and no pearl light")
+    local copy = fixtureCopy(file)
+    local minorOf = tonumber(copy[#copy].src:match('MINOR = "LibGlass%-1%.0", (%d+)'))
+    if minorOf < 11 then
+        WoW.reset(); WoW.resetLibStub()
+        local oldLib = loadCopy(fixtureCopy(file), "OldHost")
+        local hasClean = file ~= "LibGlass-r1.lua" and file ~= "LibGlass-r2.lua" and file ~= "LibGlass-r3.lua"
+            and file ~= "LibGlass-r4.lua" and file ~= "LibGlass-r5.lua"
+        local oldClassic = oldLib:New({ style = { rimAlpha = 0.5 } })
+        local oldClean = hasClean and oldLib:New({ preset = "clean", style = { gloss = 0.4 } }) or nil
+        local held = oldClean and oldClean.STYLE.gloss
+        local cur = loadLibrary("NewHost")
+        eq(rawget(oldClassic, "preset"), nil, file .. ": an older instance's preset is unknown (nil)")
+        eq(oldClassic.STYLE.rimAlpha, 0.5, file .. ": its override kept")
+        if oldClean then
+            eq(rawget(oldClean, "preset"), nil, file .. ": an older clean instance isn't named either")
+            eq(oldClean.STYLE.gloss, held, file .. ": its override kept")
+            eq(oldClean.STYLE.wash, 0.18, file .. ": and no pearl light")
+        end
+        local fresh = cur:New({ preset = "pearl" })
+        eq(fresh.preset, "pearl", file .. " then r11: New makes pearl")
+        loadCopy(fixtureCopy(file), "OlderSecond")
+        local after = cur:New({ preset = "pearl" })
+        eq(after.preset, "pearl", file .. " loaded after r11: New still makes pearl")
+        eq(after.STYLE.wash, 0.10, file .. " loaded after r11: with pearl's light")
+        eq(fresh.STYLE.wash, 0.10, file .. " loaded after r11: an instance already made is untouched")
     end
-    local fresh = cur:New({ preset = "pearl" })
-    eq(fresh.preset, "pearl", file .. " then r11: New makes pearl")
-    loadCopy(fixtureCopy(file), "OlderSecond")
-    local after = cur:New({ preset = "pearl" })
-    eq(after.preset, "pearl", file .. " loaded after r11: New still makes pearl")
-    eq(after.STYLE.wash, 0.10, file .. " loaded after r11: with pearl's light")
-    eq(fresh.STYLE.wash, 0.10, file .. " loaded after r11: an instance already made is untouched")
 end
 done("test_presets")

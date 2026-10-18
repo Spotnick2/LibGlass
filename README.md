@@ -6,8 +6,9 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** r10 released: a bar's track ramp can start at the fill's moving edge and fade out
-> over a fraction of the bar (`SetTrackLength`), instead of spanning the whole bar.
+> **Status:** r11 released: `New({ preset = "pearl" })`, the Glass suite's theme (clean with a softer
+> upper light and a quieter outline), and bar fills that stay see-through when a painter recolours
+> them on every event.
 
 ## Embedding
 
