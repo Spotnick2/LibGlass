@@ -79,7 +79,7 @@ eq(C.surfaces[4].g.tint._color[4], 0.5, "smoke: every column's body opacity")
 fp("lg smoke 2")
 eq(C.smoke, 0.5, "out of range is refused")
 fp("lg report")
-check(logHas("LibGlass r" .. N .. " is the loaded copy"), "report names the running copy")
+check(logHas("LibGlass r" .. N .. " is the loaded copy, from LibGlassProbe;"), "report names the running copy and its addon")
 check(logHas("compare: view all, body alpha 0.5, fill 50%"), "and the board's settings")
 
 ------------------------------------------------------------------------------

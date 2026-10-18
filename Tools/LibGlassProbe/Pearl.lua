@@ -27,8 +27,8 @@
 -- straight into SetBar, and nothing here reads, compares or prints them.
 
 local _, NS = ...
-local Probe, say, label, board, stripes, report, minor = NS.Probe, NS.say, NS.label, NS.board, NS.stripes,
-    NS.report, NS.minor
+local Probe, say, label, board, stripes, report, minor, winner = NS.Probe, NS.say, NS.label, NS.board,
+    NS.stripes, NS.report, NS.minor, NS.winner
 
 local WHITE = { 1, 1, 1 }              -- priest: the client's class colour
 local HUNTER = { 0.67, 0.83, 0.45 }
@@ -779,11 +779,12 @@ Probe:Steps("pearl", steps)
 -- The check r11 is tagged on: the production code, not the probe's recipe.
 Probe:Steps("r11", {
     title = "LibGlass r11: the Pearl preset and the repaint fix",
-    rev = 1,
-    { text = "Checking which copy of LibGlass is running (r11 or later).", auto = true, run = report,
+    rev = 2,
+    { text = "Checking which copy of LibGlass is running: r11 or later, and this probe's own (another addon's copy of the same MINOR may win the tie).",
+      auto = true, run = report,
       check = function()
-          local m = minor()
-          return type(m) == "number" and m >= 11, "LibGlass r" .. tostring(m)
+          local m, host = minor(), winner()
+          return type(m) == "number" and m >= 11 and host == "LibGlassProbe", "LibGlass r" .. tostring(m) .. " from " .. host
       end },
     { text = "Open the board: the library's Pearl preset on the left, P as you chose it on the right. Drag it by its header.",
       button = "Show board", run = showR11, screenshot = "r11: preset beside P", check = sameRecipe },

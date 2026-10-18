@@ -338,11 +338,21 @@ local function readStrip()
     return line
 end
 
+-- Which addon's copy won LibStub: its folder is in MEDIA. Two builds can share
+-- a MINOR (an unreleased one deployed into another addon), and the first one
+-- loaded wins the tie (#64, run #194).
+local function winner()
+    local lib = LibStub:GetLibrary("LibGlass-1.0", true)
+    local media = lib and lib.MEDIA
+    return type(media) == "string" and (media:match("AddOns\\([^\\]+)\\") or media) or "?"
+end
+
 local function report()
     local m = minor()
     local scale = UIParent:GetEffectiveScale()
-    say("LibGlass r" .. tostring(m) .. " is the loaded copy; UI scale " .. Probe.Show(scale))
-    return m, scale
+    local host = winner()
+    say("LibGlass r" .. tostring(m) .. " is the loaded copy, from " .. host .. "; UI scale " .. Probe.Show(scale))
+    return m, host, scale
 end
 
 Probe:Command("report", function()
@@ -828,6 +838,7 @@ Probe:Steps("rim", procedure({
 
 -- What Pearl.lua (loaded next) shares; it adds its boards' hides to NS.hides.
 NS.Probe, NS.say, NS.label, NS.board, NS.stripes, NS.report, NS.minor = Probe, say, label, board, stripes, report, minor
+NS.winner = winner
 NS.hides = {}
 
 local boot = CreateFrame("Frame")
