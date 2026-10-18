@@ -13,13 +13,22 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-17): `r10` released** (tag on `979a1b8`: `SetTrackLength` and
-`STYLE.trackLength`, a bar's track ramp at the fill's moving edge, #60; asked for and checked in
-game on 70450 through GlassUnitFrames' BarProbe and `/glass ramp edge`, GlassUnitFrames#117;
-every tag from r1 has a GitHub Release, #30). `r9` is `fcfd472` (`SetSurfaceRim` and
-`SetSurfaceAlpha`, one surface's own rim colour and region alphas, #40; `Reflect`, the reflective
-shell's layers, #56). GlassUnitFrames' suite passes against r10 (GlassUnitFrames#115, its r8 fill
-assertions, is still open). `r8` is `7b1b1e6`
+**Status (2026-10-18): `r11` released** (tag on `43fd134`, #64; every tag from r1 has a GitHub
+Release, #30). It adds:
+- `New({ preset = "pearl" })`, the Glass suite's theme: clean with wash 0.10, gloss 0.15, frost 0.06
+  and rim 0.6, chosen in game one layer at a time;
+- `"classic"` as a preset name, and `inst.preset`;
+- a fix: `OnBarColor` paints the fill back on every `SetStatusBarColor`. The client's call replaces the
+  fill's gradient, so bars recoloured on every event drew opaque.
+
+Checked on 70450 with `/fp steps lg repaint`, `pearl` and `r11`. Consumers:
+- Glass UI offers Pearl (GlassUI#24, `docs/SUITE.md`);
+- GlassUnitFrames#129 and GlassRaidFrames#67 follow it and pin r11;
+- GlassUnitFrames' old "same colour isn't repainted" assertion is updated there.
+
+`r10` is `979a1b8` (`SetTrackLength` and `STYLE.trackLength`, the track ramp at the fill's moving
+edge, #60). `r9` is `fcfd472` (`SetSurfaceRim` and `SetSurfaceAlpha`, one surface's own rim colour
+and region alphas, #40; `Reflect`, the reflective shell's layers, #56). `r8` is `7b1b1e6`
 (the bar fill's opacity is drawn in its gradient, #53). `r7` is
 `7d0dca4` (the disabled look dims the wash and edge glow through their gradients, and `SetWash`,
 #47). `r6` is `9a23930` (the opt-in
