@@ -253,3 +253,26 @@ arguments, so they take plain values too: secrets belong in bar values only.
 - **Measured beats reasoned.** If a claim about the client can be checked in game, check it.
 - Keep a `_test` seam table at the bottom of `LibGlass.lua` for test-only internals; don't
   promote internals to globals.
+
+## Consulting Codex
+
+The shared `codex-consult` skill (user level) has the invocation and the gotchas. For this repo:
+
+For LibGlass, good things to hand Codex:
+- anything that changes the upgrade path: `lib.impl` dispatch, hooks installed on frames,
+  migration of older instances, the completion marker (a newer copy must run on frames an older
+  copy built, and an older copy loading second must do nothing);
+- anything that could break the additive-API contract (a removed or renamed function, field,
+  region field, `TUNABLES` key or texture name);
+- the `SetStatusBarColor` hook path, which can see secret-adjacent values from consumers;
+- the render-cost budget of the glass layers (texture count, `OnUpdate` / animation use);
+- packaging: `.pkgmeta`, what a consumer's zip ends up holding under `Libs/LibGlass-1.0/`.
+
+**Always hand it `CLAUDE.md` alongside the diff or plan**, plus
+`C:/Projects/WoW/References/Docs/PORTING-TBC-TO-FOREVER.md` and any `docs/` probe results. Those findings
+were measured on the live client. Without them, a cold reviewer argues from Classic-era or Retail
+behaviour that doesn't hold here: that auras throw for the whole group in combat, that secure
+snippets and state drivers are broken, that some unit numbers are secret.
+`C:/Projects/WoW/References/Forever/api/forever-api-<version>.<build>.md` (take the highest build) is the full API surface when a question
+turns on whether something exists. The precedent embedded library is `C:/Projects/WoW/LibGroupBuffs`
+(consumed by `C:/Projects/WoW/Priestly`), and the pilot consumer is `C:/Projects/WoW/GlassUnitFrames`.
