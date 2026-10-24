@@ -8,12 +8,12 @@
 
     Usage, from the repo root:
         pwsh Tools\LibGlassProbe\deploy.ps1
-        pwsh Tools\LibGlassProbe\deploy.ps1 -AddOnsPath "D:\...\_classic_beta_\Interface\AddOns"
+        pwsh Tools\LibGlassProbe\deploy.ps1 -AddOnsPath "D:\...\_forever_\Interface\AddOns"
     Then /reload in game (a brand-new addon folder included) and /fp steps lg repaint, /fp steps lg pearl.
 #>
 
 param(
-    [string]$AddOnsPath = "C:\Program Files (x86)\World of Warcraft\_classic_beta_\Interface\AddOns",
+    [string]$AddOnsPath = "C:\Program Files (x86)\World of Warcraft\_forever_\Interface\AddOns",
     [string]$Lua = "C:\Program Files (x86)\Lua\5.1\lua.exe"
 )
 
