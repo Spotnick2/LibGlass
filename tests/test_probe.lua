@@ -628,6 +628,56 @@ fp("lg hide")
 for _, k in ipairs({ "UnitHealth", "UnitHealthMax", "UnitPower", "UnitPowerMax" }) do rawset(_G, k, nil) end
 
 ------------------------------------------------------------------------------
+-- #69: fonts by locale, end to end; first without CreateFontFamily (the
+-- stub's absence), then with one, as the client has it
+------------------------------------------------------------------------------
+local FO = ns._test.Fonts
+fp("steps lg fonts")
+local trec = ForeverProbeDB.steps.records["LibGlassProbe/fonts"]
+check(trec and trec.status == "active", "/fp steps lg fonts starts it")
+eq(trec.results[1].check, N >= 12 and "PASS" or "FAIL", "step 1 needs r12")
+S.Run(); shoot()   -- 2: the board
+check(FO.FB.root:IsShown(), "the fonts board is up")
+local byName = {}
+for _, c in ipairs(FO.FB.cells) do byName[c.name] = c end
+eq(byName["ruRU r11 friz"].fs._font[1], "Fonts\\FRIZQT__.TTF", "r11's friz for the Russian row")
+eq(byName["ruRU r12 friz"].fs._font[1], "Fonts\\FRIZQT___CYR.TTF", "r12's Cyrillic Friz beside it")
+eq(byName["koKR r12 arial"].fs._font[1], "Fonts\\2002.TTF", "r12's Korean font for arial")
+eq(byName["zhTW r12 friz"].fs._font[1], "Fonts\\blei00d.TTF", "r12's traditional Chinese for friz")
+eq(byName["ruRU r12 friz"].fs._text, FO.ROWS[2].text, "each row shows its own language")
+check(byName["names family friz"] == nil, "no family cell without CreateFontFamily")
+eq(FO.FB.familyError, "no CreateFontFamily", "and why")
+eq(trec.results[3].check, "PASS", "every file accepted")
+S.Answer(true); S.Answer(true); S.Answer(true)
+S.Next()
+eq(trec.status, "done", "the fonts procedure finishes")
+noErrors(trec, "fonts")
+check(logHas("fonts: this client is enUS"), "the client's locale logged")
+
+-- The client's CreateFontFamily: members, one per alphabet, from fontsFor.
+local made = {}
+rawset(_G, "CreateFontFamily", function(name, members)
+    made[name] = members
+    return { name = name }
+end)
+FO.FB.families, FO.FB.familyError = {}, nil
+fp("lg fonts")
+local fam = made["LibGlassProbeFont_friz"]
+check(fam and #fam == 5, "a family per key, five members")
+eq(fam and fam[2].alphabet, "russian", "the second is Russian")
+eq(fam and fam[2].file, "Fonts\\FRIZQT___CYR.TTF", "in the Cyrillic Friz")
+byName = {}
+for _, c in ipairs(FO.FB.cells) do byName[c.name] = c end
+check(byName["names family friz"] and byName["names family friz"].fs._log, "the family cell is drawn")
+fp("lg fonts")
+local n = 0
+for _ in pairs(made) do n = n + 1 end
+eq(n, 2, "a rebuild reuses the two families")
+fp("lg hide")
+check(not FO.FB.root:IsShown(), "lg hide closes the fonts board")
+rawset(_G, "CreateFontFamily", nil)
+
+------------------------------------------------------------------------------
 -- Nothing went wrong, nothing went to chat, the log clears in place
 ------------------------------------------------------------------------------
 eq(logCount("ERROR"), 0, "no command or step logged an error")

@@ -38,7 +38,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 11
+local MAJOR, MINOR = "LibGlass-1.0", 12
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -113,10 +113,26 @@ lib.SIZES = fill(lib.SIZES or {}, {
 })
 
 -- Client-shipped fonts only. Arial Narrow runs small, so it gets a point more.
-lib.FONTS = fill(lib.FONTS or {}, {
-    arial = { file = "Fonts\\ARIALN.TTF",   bump = 1 },
-    friz  = { file = "Fonts\\FRIZQT__.TTF", bump = 0 },
-})
+-- r12 (#69): the Latin files have no Cyrillic (Friz) or CJK (either) glyphs,
+-- so on those clients `file` is the client's own font for that script, as
+-- Blizzard's font families pick it per alphabet (wow-ui-source
+-- Blizzard_Fonts_Shared: Friz's members, and Arial Narrow's in the number
+-- fonts; Arial Narrow is its own Russian member). Consumers that call
+-- SetFont(FONTS[key].file, ...) themselves get it too.
+local LOCALE_FONTS = {
+    ruRU = { friz = "Fonts\\FRIZQT___CYR.TTF" },
+    koKR = { arial = "Fonts\\2002.TTF",        friz = "Fonts\\2002.TTF" },
+    zhCN = { arial = "Fonts\\ARKai_C.ttf",     friz = "Fonts\\ARKai_T.ttf" },
+    zhTW = { arial = "Fonts\\arheiuhk_bd.TTF", friz = "Fonts\\blei00d.TTF" },
+}
+local function fontsFor(locale)
+    local own = LOCALE_FONTS[locale] or {}
+    return {
+        arial = { file = own.arial or "Fonts\\ARIALN.TTF",   bump = 1 },
+        friz  = { file = own.friz  or "Fonts\\FRIZQT__.TTF", bump = 0 },
+    }
+end
+lib.FONTS = fill(lib.FONTS or {}, fontsFor(GetLocale()))
 
 -- Bar levels: the track's clip frame at bar + 1; callers' overlays over the
 -- fill at + 2 and + 3 (GlassUnitFrames: health loss, heal prediction); the
@@ -1163,6 +1179,6 @@ end
 for _, inst in ipairs(lib.instances) do lib.impl.Migrate(inst) end
 
 -- Test-only internals.
-lib._test = { fill = fill, fillMissing = fillMissing, inRange = inRange }
+lib._test = { fill = fill, fillMissing = fillMissing, inRange = inRange, fontsFor = fontsFor }
 
 lib.ready = MINOR
