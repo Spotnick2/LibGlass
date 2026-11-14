@@ -132,7 +132,10 @@ local function fontsFor(locale)
         friz  = { file = own.friz  or "Fonts\\FRIZQT__.TTF", bump = 0 },
     }
 end
-lib.FONTS = fill(lib.FONTS or {}, fontsFor(GetLocale()))
+-- rawget: the client always has GetLocale, but consumers' strict test stubs
+-- (and WowTestKit's) don't; without it, the Latin files, as r11.
+local getLocale = rawget(_G, "GetLocale")
+lib.FONTS = fill(lib.FONTS or {}, fontsFor(getLocale and getLocale()))
 
 -- Bar levels: the track's clip frame at bar + 1; callers' overlays over the
 -- fill at + 2 and + 3 (GlassUnitFrames: health loss, heal prediction); the

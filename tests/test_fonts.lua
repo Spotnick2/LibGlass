@@ -50,6 +50,19 @@ for locale, want in pairs(EXPECT) do
     eq(lib:New({ font = "friz" }).Font(newHost(), 12)._font[1], want.friz, locale .. ": font = friz at New")
 end
 
+-- Without GetLocale (a consumer's strict stub, WowTestKit's): r11's files,
+-- and no error.
+do
+    local real = GetLocale
+    rawset(_G, "GetLocale", nil)
+    WoW.reset(); WoW.resetLibStub()
+    local ok, lib = pcall(loadCopy, copyOf(), "GlassUnitFrames")
+    check(ok, "loads without GetLocale: " .. tostring(not ok and lib or ""))
+    eq(ok and lib.FONTS.friz.file, FRIZ, "and keeps the Latin friz")
+    eq(ok and lib.FONTS.arial.file, ARIALN, "and the Latin arial")
+    rawset(_G, "GetLocale", real)
+end
+
 -- An unknown locale is a Latin one.
 eq(fresh("xxXX").FONTS.friz.file, FRIZ, "an unknown locale keeps the Latin files")
 -- fontsFor hands out fresh tables: nothing a caller does to one reaches FONTS.
