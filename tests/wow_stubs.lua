@@ -217,6 +217,9 @@ Enum = {
 }
 function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
 strmatch = string.match   -- LibStub uses it
+-- The client's locale; a test sets WoW.locale before loading a copy (r12, #69).
+WoW.locale = "enUS"
+function GetLocale() return WoW.locale end
 
 -- Post-hook a method, as the client does: the original runs first. Logged on
 -- the widget, so the parity test compares the hooks installed too.

@@ -105,7 +105,10 @@ side by side.
   0.01..1 = only its fade, from the fill's moving edge over that fraction of the bar's width,
   every bar of the instance, live; also the `STYLE.trackLength` construction key).
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
-  `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only).
+  `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only). From r12 (#69) `FONTS[key].file` is the
+  client locale's file for that key (Cyrillic Friz on ruRU, the Korean and Chinese fonts on
+  koKR/zhCN/zhTW, r11's Latin files elsewhere), chosen at load; GlassRaidFrames and GlassActionBars
+  read `.file` directly.
 - **Region fields consumers reach into:** `g.{size,shadow,mask,tint,grain,wash,top,dark,rim,edge}`
   (from r9, `g.reflect.{rim,top,header}`),
   `bar.{glassMask,track,trackClip,overlay,trackColor}`. From r6, `g.size` is the resolved

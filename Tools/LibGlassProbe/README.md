@@ -147,6 +147,18 @@ Commands:
 - `/fp lg pearl | a | p | all | next | rotate | value 0..100 | set wash|gloss|frost|shade|rim 0..1|off |
   reset | live on|off | report`
 
+## Fonts (#69): `/fp steps lg fonts`
+
+`Fonts.lua`. Font files are the same on every client, so an English client shows what each
+language's players would see.
+- **One row per client language** (enUS, ruRU, koKR, zhCN, zhTW), its own text, in r11's two files
+  (Arial Narrow, Friz Quadrata) and r12's choice for that locale (the library's `_test.fontsFor`).
+- **The last row:** names in four scripts on this client, in the plain files and in a font family
+  (`CreateFontFamily`, each script's r12 file as a member), to see whether a family falls back per
+  character where a plain file doesn't.
+- **Logged per cell:** `SetFont`'s success and the file `GetFont` reads back; the client's locale.
+  The screenshot is the evidence for boxes. Also `/fp lg fonts`.
+
 ## Commands
 
 `/fp lg` lists them all. The r7 board also has manual controls: `r7` (built fresh), `wash 0..1`,

@@ -600,6 +600,29 @@ library.
 - **Text over glass** needs a shadow (`SetShadowOffset(1.5, -1.5)`, opaque black; 1 unit at black
   0.9 washed out over pale bars, since 1 UI unit is under a pixel at a 0.64 scale). Arial Narrow
   (`Fonts\ARIALN.TTF`, client-shipped) reads more modern than Friz Quadrata; it's the default.
+- **The fonts follow the client's locale (r12, #69).** The Latin files lack scripts: Friz has no
+  Cyrillic, and neither file has Korean or Chinese. Blizzard's font families pick a file per
+  alphabet (wow-ui-source `Blizzard_Fonts_Shared`), and `FONTS[key].file` takes the same
+  choice at load, by `GetLocale()`:
+
+  | Locale | `arial` | `friz` |
+  |---|---|---|
+  | ruRU | `ARIALN.TTF` (Blizzard's own Russian member) | `FRIZQT___CYR.TTF` |
+  | koKR | `2002.TTF` | `2002.TTF` |
+  | zhCN | `ARKai_C.ttf` | `ARKai_T.ttf` |
+  | zhTW | `arheiuhk_bd.TTF` | `blei00d.TTF` |
+  | any other | `ARIALN.TTF` | `FRIZQT__.TTF` |
+
+  The bumps don't change. Consumers that call `SetFont(FONTS[key].file, ...)` themselves get the
+  same file. A string built by an older copy keeps its file until its instance's next `SetFont`.
+  Measured on 70938, enUS (`/fp steps lg fonts`, run #284). r11's Friz boxed Russian, and both
+  r11 files boxed Korean and Chinese. r12's choice showed every language's text. `ARKai_C`,
+  `arheiuhk_bd` and `blei00d` don't load on an English client: they ship with the Chinese clients,
+  where Blizzard uses them.
+  What r12 doesn't do: a plain file has no per-character fallback, so an English client still
+  draws a Korean or Chinese name in boxes (and a Cyrillic one in Friz). A font family
+  (`CreateFontFamily`) doesn't help: it drew each string in one member's file (porting guide,
+  "A font file draws one script").
 - **The sheen at full brightness washes out text.** Keep its alpha ≤ 0.8 with the narrow
   `sheen2`, and trigger it on events (e.g. a new target), never continuously.
 - **Frame levels:** everything that must sit above the rim goes on `g.top`. A child frame of the

@@ -9,7 +9,7 @@
     Usage, from the repo root:
         pwsh Tools\LibGlassProbe\deploy.ps1
         pwsh Tools\LibGlassProbe\deploy.ps1 -AddOnsPath "D:\...\_forever_\Interface\AddOns"
-    Then /reload in game (a brand-new addon folder included) and /fp steps lg repaint, /fp steps lg pearl.
+    Then /reload in game (a brand-new addon folder included) and /fp steps lg fonts (or repaint, pearl, ...).
 #>
 
 param(
@@ -21,7 +21,7 @@ $ErrorActionPreference = "Stop"
 $ProbeDir = $PSScriptRoot
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $ProbeDir)
 $ForeverProbe = if ($env:FOREVERPROBE) { $env:FOREVERPROBE } else { Join-Path (Split-Path -Parent $RepoRoot) "ForeverProbe" }
-$Files = @("LibGlassProbe.toc", "LibGlassProbe.lua", "Pearl.lua")
+$Files = @("LibGlassProbe.toc", "LibGlassProbe.lua", "Pearl.lua", "Fonts.lua")
 
 foreach ($f in $Files) {
     if (-not (Test-Path -LiteralPath (Join-Path $ProbeDir $f))) { Write-Error "Missing probe file: $f"; exit 1 }
