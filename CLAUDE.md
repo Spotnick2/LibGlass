@@ -13,8 +13,13 @@ AltStable and LibGroupBuffs.
 Players never install it: each addon embeds a copy under `Libs\LibGlass-1.0\` through `.pkgmeta`
 externals, and LibStub runs the newest copy loaded.
 
-**Status (2026-10-18): `r11` released** (tag on `43fd134`, #64; every tag from r1 has a GitHub
-Release, #30). It adds:
+**Status (2026-11-14): `r12` released** (tag on `34a2dd5`, #69; every tag from r1 has a GitHub
+Release, #30). `FONTS[key].file` follows the client's locale: the Cyrillic Friz on ruRU, the
+Korean and Chinese fonts on koKR/zhCN/zhTW, r11's files elsewhere. `GetLocale` is read through
+`rawget`, so strict test stubs without it keep r11's files. Checked on 70938 (enUS) with
+`/fp steps lg fonts`. No consumer change is needed; pins move to r12 on their next release.
+
+`r11` is `43fd134` (#64). It adds:
 - `New({ preset = "pearl" })`, the Glass suite's theme: clean with wash 0.10, gloss 0.15, frost 0.06
   and rim 0.6, chosen in game one layer at a time;
 - `"classic"` as a preset name, and `inst.preset`;

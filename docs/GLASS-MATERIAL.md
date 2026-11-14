@@ -615,7 +615,7 @@ library.
 
   The bumps don't change. Consumers that call `SetFont(FONTS[key].file, ...)` themselves get the
   same file. A string built by an older copy keeps its file until its instance's next `SetFont`.
-  Measured on 70938, enUS (`/fp steps lg fonts`, run #284). r11's Friz boxed Russian, and both
+  Measured on 70938, enUS (`/fp steps lg fonts`, run #284; **released as r12**, `34a2dd5`, 2026-11-14). r11's Friz boxed Russian, and both
   r11 files boxed Korean and Chinese. r12's choice showed every language's text. `ARKai_C`,
   `arheiuhk_bd` and `blei00d` don't load on an English client: they ship with the Chinese clients,
   where Blizzard uses them.
