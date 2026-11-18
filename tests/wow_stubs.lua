@@ -164,6 +164,23 @@ function Methods.RemoveMaskTexture(t, m)
     end
 end
 
+-- WowTestKit #69: on 70959 SetText on a font string with no font throws
+-- "Font not set" (the probe's board, /fp steps lg button, 2026-11-18). A
+-- font string has one from SetFont, SetFontObject or CreateFontString's
+-- template, which the core drops (kept here as _fontTemplate).
+local coreCreateFontString, coreSetText = Methods.CreateFontString, Methods.SetText
+function Methods.CreateFontString(w, name, layer, template, ...)
+    local fs = coreCreateFontString(w, name, layer, template, ...)
+    fs._fontTemplate = template
+    return fs
+end
+function Methods.SetText(fs, ...)
+    if fs._type == "FontString" and not (fs._font or fs._fontObject or fs._fontTemplate) then
+        error("FontString:SetText(): Font not set", 2)
+    end
+    return coreSetText(fs, ...)
+end
+
 -- HookScript keeps each hook in w._hooks[script], and never runs it: the
 -- track-length test (test_material) counts the bar's OnSizeChanged hooks
 -- ("never hooked twice") and calls the one it finds, and the stub has no

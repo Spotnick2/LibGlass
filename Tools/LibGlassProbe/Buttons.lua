@@ -49,9 +49,11 @@ local function makeButton(parent, x, y, icon)
     border:SetColorTexture(0.55, 0.4, 0.2, 0.9)
     b:SetPushedTexture("Interface\\Buttons\\UI-Quickslot-Depress")
     b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
-    local hk = b:CreateFontString(nil, "OVERLAY")
+    -- A font of its own, as an action button has from its template: SetText
+    -- on a font string without one throws "Font not set" (70959).
+    local hk = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     hk:SetPoint("TOPRIGHT", b, "TOPRIGHT", -2, -2)
-    local count = b:CreateFontString(nil, "OVERLAY")
+    local count = b:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
     count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
     local cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
     cd:SetAllPoints(t)
