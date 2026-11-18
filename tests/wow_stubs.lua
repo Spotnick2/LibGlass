@@ -1,51 +1,92 @@
--- wow_stubs.lua: a minimal WoW: Forever mock for Lua 5.1 unit tests, trimmed
--- from GlassUnitFrames' to what the material uses.
--- dofile("tests/wow_stubs.lua") FIRST in every test; drive it via the WoW table.
+-- wow_stubs.lua: LibGlass's part of the WoW: Forever mock for Lua 5.1 unit
+-- tests. dofile("tests/wow_stubs.lua") FIRST in every test; drive it via the
+-- WoW table.
 --
--- What it models, on purpose:
--- - STRICT globals: reading any global it does not define is an error. The
---   stub is the allowlist of APIs verified present in the API dump; defining
---   something Forever lacks is how a missing API survives into a build.
--- - SECRETS as newproxy userdata: arithmetic, ordering, tostring, concat and
---   string.format on one throw. Lua 5.1 cannot make a truth test or == throw,
---   so those two misuses are NOT caught here (only in game / in review).
--- - METHOD calls: every widget method called is recorded (WoW.methodsCalled)
---   so test_methods.lua can check each against the dump's widget methods, and
---   logged per widget with its arguments (w._log) so test_parity.lua can
---   compare everything the library draws with GlassUnitFrames' Glass.lua v3.
-
-WoW = {}
-WoW.DUMP = os.getenv("LIBGLASS_API_DUMP") or "C:/Projects/WoW/References/Forever/api/forever-api-1.60.1.70338.md"
+-- The mechanics are WowTestKit's core (tests/kit.lua loads it at the commit
+-- and build tests/kit.pin names; its README is the reference): strict
+-- globals, secrets (WoW.Secret, issecretvalue), CreateFrame and the widget
+-- method recorder (WoW.methodsCalled, checked by Kit.checkMethods), events
+-- checked against the build, OnShow / OnHide, OnUpdate ticks, timers,
+-- hooksecurefunc, print, combat lockdown. This file adds only what the
+-- library, its probe and its tests use beyond them.
+dofile("tests/kit.lua")
+local Methods = WoW.Methods
 
 --------------------------------------------------------------------------------
--- Secrets
+-- WowTestKit #67: the per-widget call log the core lacks. WoW.widgets is
+-- every widget the tests made (frames and regions), in creation order, and
+-- each one's w._log the methods called on it, in order, with their arguments
+-- ({ name, n = argc, ... }), so test_parity.lua can compare everything the
+-- library draws with GlassUnitFrames' Glass.lua v3, and the upgrade and
+-- isolation tests can prove that nothing was repainted. A hooksecurefunc on
+-- a widget is logged too ("hooksecurefunc:<name>"), so the parity test
+-- compares the hooks installed.
 --------------------------------------------------------------------------------
 
-local secrets = setmetatable({}, { __mode = "k" })
-
-function WoW.Secret(label)
-    local p = newproxy(true)
-    local mt = getmetatable(p)
-    local function boom() error("secret value touched in Lua: " .. label, 2) end
-    for _, k in ipairs({ "__tostring", "__concat", "__add", "__sub", "__mul", "__div", "__mod",
-                         "__pow", "__unm", "__lt", "__le", "__len", "__index", "__newindex", "__call" }) do
-        mt[k] = boom
+-- Each widget type's method table (the core's, the __index of the type's
+-- metatable) hands out logging wrappers of its methods: the build's ones are
+-- wrapped once and kept in the table, as the core keeps them, so every read
+-- still gives the same function.
+local function logging(name, fn)
+    return function(self, ...)
+        local log = type(self) == "table" and rawget(self, "_log")
+        if log then table.insert(log, { name, n = select("#", ...), ... }) end
+        return fn(self, ...)
     end
-    secrets[p] = label
-    return p
+end
+local patched = {}
+local function patchType(wtype)
+    if patched[wtype] then return end
+    patched[wtype] = true
+    local methods = getmetatable(WoW.newWidget(wtype)).__index
+    for k, fn in pairs(methods) do rawset(methods, k, logging(k, fn)) end
+    local mt = getmetatable(methods)
+    local lookup = mt.__index
+    mt.__index = function(tbl, k)
+        local fn = lookup(tbl, k)
+        if type(fn) ~= "function" then return fn end
+        local wrapped = logging(k, fn)
+        if rawget(tbl, k) == fn then rawset(tbl, k, wrapped) end
+        return wrapped
+    end
 end
 
-function WoW.IsSecret(v) return secrets[v] ~= nil end
-
---------------------------------------------------------------------------------
--- State
---------------------------------------------------------------------------------
-
-function WoW.reset()
-    WoW.frames = {}
-    WoW.widgets = {}          -- every widget, in creation order (frames and regions)
-    WoW.methodsCalled = {}
+local function track(w)
+    patchType(w._type)
+    rawset(w, "_log", {})
+    table.insert(WoW.widgets, w)
+    return w
 end
+
+WoW.widgets = {}
+table.insert(WoW.onReset, function() WoW.widgets = {} end)
+
+local coreCreateFrame = CreateFrame
+function CreateFrame(...) return track(coreCreateFrame(...)) end
+for _, name in ipairs({ "CreateTexture", "CreateFontString", "CreateMaskTexture",
+                        "CreateAnimationGroup", "CreateAnimation" }) do
+    local core = Methods[name]
+    Methods[name] = function(w, ...) return track(core(w, ...)) end
+end
+local coreSetStatusBarTexture = Methods.SetStatusBarTexture
+function Methods.SetStatusBarTexture(b, ...)
+    local had = b._fill
+    local r = coreSetStatusBarTexture(b, ...)
+    if b._fill and b._fill ~= had then track(b._fill) end
+    return r
+end
+
+local coreHook = hooksecurefunc
+function hooksecurefunc(t, name, fn)
+    if type(t) == "table" and rawget(t, "_log") then table.insert(t._log, { "hooksecurefunc:" .. name, n = 0 }) end
+    return coreHook(t, name, fn)
+end
+
+--------------------------------------------------------------------------------
+-- The tests' own helpers
+--------------------------------------------------------------------------------
+
+function WoW.IsSecret(v) return issecretvalue(v) end
 
 -- A fresh client: no LibStub, so the next load starts the library from scratch.
 function WoW.resetLibStub()
@@ -53,194 +94,71 @@ function WoW.resetLibStub()
 end
 
 --------------------------------------------------------------------------------
--- Widgets
+-- Widget methods that differ from the core's, each because a test relies on it
 --------------------------------------------------------------------------------
 
-local Methods = {}   -- shared implementations, by method name
-
-local widgetMT = {
-    __index = function(w, k)
-        if type(k) ~= "string" or not k:match("^%u") then return nil end  -- fields read as nil
-        return function(self, ...)
-            WoW.methodsCalled[self._type .. ":" .. k] = true
-            table.insert(self._log, { k, n = select("#", ...), ... })
-            local impl = Methods[k]
-            if impl then return impl(self, ...) end
-            return nil
-        end
-    end,
-}
-
-local function newWidget(wtype, parent, name)
-    local w = setmetatable({ _type = wtype, _parent = parent, _shown = true, _points = {}, _log = {},
-                             _level = parent and parent._level and (parent._level + 1) or 1,
-                             _width = 0, _height = 0, _name = name }, widgetMT)
-    table.insert(WoW.widgets, w)
-    return w
-end
-
-function CreateFrame(ftype, name, parent, template)
-    local w = newWidget(ftype, parent, name)
-    w._template = template
-    if ftype == "StatusBar" then w._min, w._max, w._value = 0, 1, 0 end
-    table.insert(WoW.frames, w)
-    if name then rawset(_G, name, w) end
-    return w
-end
-
-function Methods.Show(w) w._shown = true end
-function Methods.Hide(w) w._shown = false end
-function Methods.SetShown(w, v) w._shown = v and true or false end
-function Methods.IsShown(w) return w._shown end
-function Methods.SetPoint(w, ...) table.insert(w._points, { ... }) end
-function Methods.ClearAllPoints(w) w._points = {} end
-function Methods.SetTexCoord(t, ...) t._texCoord = { ... } end
-function Methods.SetAllPoints(w, rel) table.insert(w._points, { "ALL", rel }) end
-function Methods.SetSize(w, x, y) w._width, w._height = x, y end
-function Methods.SetWidth(w, x) w._width = x end
-function Methods.SetHeight(w, y) w._height = y end
-function Methods.GetWidth(w) return w._width end
-function Methods.GetHeight(w) return w._height end
-function Methods.GetFrameLevel(w) return w._level end
-function Methods.SetFrameLevel(w, l) w._level = l end
-function Methods.GetParent(w) return w._parent end
-function Methods.GetObjectType(w) return w._type end
-function Methods.SetClipsChildren(w, v) w._clips = v end
-
--- Regions. Draw layer and sublevel are kept, as the client draws by them.
-function Methods.CreateTexture(w, name, layer, template, sublevel)
-    local t = newWidget("Texture", w, name)
-    t._layer, t._sublevel = layer, sublevel
-    return t
-end
-function Methods.CreateMaskTexture(w, name, layer) return newWidget("MaskTexture", w, name) end
-function Methods.CreateFontString(w, name, layer, template, sublevel)
-    local t = newWidget("FontString", w, name)
-    t._layer, t._sublevel = layer, sublevel
-    return t
-end
-function Methods.CreateAnimationGroup(w)
-    local ag = newWidget("AnimationGroup", w)
-    ag._plays = 0
-    return ag
-end
-function Methods.CreateAnimation(ag, atype) return newWidget(atype or "Animation", ag) end
-function Methods.Play(ag) ag._plays = (ag._plays or 0) + 1 end
-function Methods.Stop(ag) ag._stops = (ag._stops or 0) + 1 end
-function Methods.SetTexture(t, file) t._file = file; return true end
+-- w._alpha records every SetAlpha the library asked for, on a gradient
+-- texture too, and SetGradient keeps it: the tests read it as that record
+-- ("the wash's region alpha left alone", "A: SetAlpha before its gradient",
+-- the alphas an upgrade gives back). What the client draws is modelled where
+-- it reads back: GetAlpha reads 1 on a gradient texture (measured on 70374,
+-- #47, #53). The core models it in _alpha itself instead (SetAlpha ignored on
+-- a gradient, SetGradient drops it), which those checks can't read.
 function Methods.SetAlpha(w, a) w._alpha = a end
--- A texture with a gradient ignores SetAlpha, before or after, and GetAlpha
--- reads 1 on it (measured on 70374, #47, #53): its alpha is its gradient's.
--- _alpha still records what was asked for.
 function Methods.GetAlpha(w) if w._gradient then return 1 end return w._alpha or 1 end
-function Methods.SetVertexColor(t, r, g, b, a) t._vertex = { r, g, b, a } end
-function Methods.SetColorTexture(t, r, g, b, a) t._color = { r, g, b, a } end
-function Methods.AddMaskTexture(t, m) t._masks = t._masks or {}; table.insert(t._masks, m) end
-function Methods.SetGradient(t, orientation, c1, c2)
-    assert(type(c1) == "table" and type(c2) == "table", "SetGradient takes color objects on this API")
-    t._gradient = { orientation, c1, c2 }
+local coreSetGradient = Methods.SetGradient
+function Methods.SetGradient(t, ...)
+    local asked = t._alpha
+    coreSetGradient(t, ...)
+    t._alpha = asked
 end
-function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b } end
-function Methods.SetBlendMode(t, mode) t._blend = mode end
-function Methods.SetFont(fs, file, size, flags) fs._font = { file, size, flags }; return true end
-function Methods.GetFont(fs) if fs._font then return fs._font[1], fs._font[2], fs._font[3] end end
 
--- StatusBar: takes values (secret or not) without inspecting them.
+--------------------------------------------------------------------------------
+-- Widget methods beyond the core's, each read by a test
+--------------------------------------------------------------------------------
+
+function Methods.SetTexCoord(t, ...) t._texCoord = { ... } end
+function Methods.SetClipsChildren(w, v) w._clips = v end
+function Methods.SetTextureSliceMargins(t, l, tp, r, b) t._slice = { l, tp, r, b } end
+
+-- StatusBar: takes values (secret or not) without inspecting them, and keeps
+-- the interpolation each call asked for (test_material's easing checks).
 function Methods.SetMinMaxValues(b, lo, hi, interp) b._min, b._max, b._minMaxInterp = lo, hi, interp end
 function Methods.GetMinMaxValues(b) return b._min, b._max end
-function Methods.SetValue(b, v, interp) b._value = v; b._interp = interp end
-function Methods.GetValue(b) return b._value end
-function Methods.SetStatusBarTexture(b, file)
-    b._fill = b._fill or newWidget("Texture", b)
-    b._fill._file = file
-    return true
-end
-function Methods.GetStatusBarTexture(b) return b._fill end
--- The client sets the fill texture's vertex colour, which replaces any
--- gradient on it: GetVertexColor then reads the colour, and the fill draws
--- opaque (measured on 70450, #64: /fp steps lg repaint, hunter green).
-function Methods.SetStatusBarColor(b, r, g, bl, a)
-    b._color = { r, g, bl, a }
-    if b._fill then
-        b._fill._gradient = nil
-        b._fill._vertex = { r, g, bl, a or 1 }
-    end
+local coreSetValue = Methods.SetValue
+function Methods.SetValue(b, v, interp)
+    coreSetValue(b, v)
+    b._interp = interp
 end
 
 -- Button: its highlight texture (Glass.Pill softens it).
 function Methods.SetHighlightTexture(b, file, blend)
-    b._highlight = b._highlight or newWidget("Texture", b)
+    b._highlight = b._highlight or track(WoW.newWidget("Texture", b))
     b._highlight._file, b._highlight._blend = file, blend
 end
 function Methods.GetHighlightTexture(b) return b._highlight end
 
--- Scripts, text and events: what the probe and its host, ForeverProbe, use
--- (tests/test_probe.lua). The library itself uses none of them.
-function Methods.SetScript(w, name, fn) w._scripts = w._scripts or {}; w._scripts[name] = fn end
+-- HookScript keeps each hook in w._hooks[script], and never runs it: the
+-- track-length test (test_material) counts the bar's OnSizeChanged hooks
+-- ("never hooked twice") and calls the one it finds, and the stub has no
+-- OnSizeChanged to fire. The core's chains the hook into the script.
 function Methods.HookScript(w, name, fn)
     w._hooks = w._hooks or {}
     w._hooks[name] = w._hooks[name] or {}
     table.insert(w._hooks[name], fn)
 end
-function Methods.GetScript(w, name) return w._scripts and w._scripts[name] end
-function Methods.SetText(w, text) w._text = text end
-function Methods.GetText(w) return w._text end
-function Methods.RegisterEvent(w, event) w._events = w._events or {}; w._events[event] = true; return true end
-function Methods.UnregisterEvent(w, event) if w._events then w._events[event] = nil end end
-
--- One rendered frame: every OnUpdate script runs.
-function WoW.tick(elapsed)
-    for _, f in ipairs(WoW.frames) do
-        local onUpdate = f._scripts and f._scripts.OnUpdate
-        if onUpdate then onUpdate(f, elapsed or 0.016) end
-    end
-end
-
--- Fire an event at every frame registered for it, in creation order.
-function WoW.fire(event, ...)
-    for _, f in ipairs(WoW.frames) do
-        local onEvent = f._events and f._events[event] and f._scripts and f._scripts.OnEvent
-        if onEvent then onEvent(f, event, ...) end
-    end
-end
 
 --------------------------------------------------------------------------------
--- Globals
+-- Globals (each in the API dump)
 --------------------------------------------------------------------------------
-
-WoW.reset()
-UIParent = newWidget("Frame", nil, "UIParent")   -- not in WoW.widgets: reset() clears it
-UIParent._level = 0
 
 Enum = {
     UITextureSliceMode = { Stretched = 0, Tiled = 1 },
 }
 function CreateColor(r, g, b, a) return { r = r, g = g, b = b, a = a } end
-strmatch = string.match   -- LibStub uses it
--- The client's locale; a test sets WoW.locale before loading a copy (r12, #69).
-WoW.locale = "enUS"
-function GetLocale() return WoW.locale end
 
--- Post-hook a method, as the client does: the original runs first. Logged on
--- the widget, so the parity test compares the hooks installed too.
-function hooksecurefunc(t, name, fn)
-    local orig = t[name]
-    if t._log then table.insert(t._log, { "hooksecurefunc:" .. name, n = 0 }) end
-    rawset(t, name, function(self, ...)
-        local r = orig(self, ...)
-        fn(self, ...)
-        return r
-    end)
-end
-
-WoW.reset()   -- the tests' widgets only
-
--- Strict globals: any read of an undefined global is an error, except the
--- globals that are legitimately nil before first assignment: LibStub (the
+-- Strict globals, last: any read of an undefined global is an error, except
+-- the globals that are legitimately nil before first assignment: LibStub (the
 -- bundled file checks for an earlier copy), GlassUF (the frozen v3 file) and
 -- LibGlassProbeDB (the probe's SavedVariables, nil on a first load).
-local allowNil = { LibStub = true, GlassUF = true, LibGlassProbeDB = true }
-setmetatable(_G, { __index = function(_, k)
-    if allowNil[k] then return nil end
-    error("read of undefined global '" .. tostring(k) .. "' (not stubbed: is it in the API dump?)", 2)
-end })
+Kit.strict({ LibStub = true, GlassUF = true, LibGlassProbeDB = true })

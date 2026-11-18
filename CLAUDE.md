@@ -178,11 +178,28 @@ These follow `C:\Projects\WoW\References\Docs\EMBEDDED-LIBRARIES.md` §5 (it rep
 
 ## Testing
 
-Plain Lua 5.1 scripts, no dependencies, modelled on GlassUnitFrames' harness:
-`tests\wow_stubs.lua` (strict-globals allowlist, `newproxy` secrets that throw, every widget
-method recorded and checked against the API dump by `test_methods.lua`), `tests\harness.lua`
-(loads the library **through the XML's order**), `tests\run.ps1` (`luac -p` + every
-`tests\test_*.lua`).
+Plain Lua 5.1 scripts, no dependencies besides the scaffolding below.
+
+The test scaffolding is WowTestKit (`C:\Projects\WoW\WowTestKit`; its README is the reference)
+at the commit and client build `tests\kit.pin` names. `tests\run.ps1` puts that commit in
+`%LOCALAPPDATA%\WowTestKit\<sha>` and hands off to the kit's runner; CI fetches it with
+`tests\fetch_kit.sh`. `tests\kit.lua`, `kit.ps1` and `fetch_kit.sh` are the kit's bootstrap
+copies: never edit them here. A kit need is an issue on the kit, worked around in
+`tests\wow_stubs.lua` with a `-- WowTestKit #N:` comment meanwhile. `tests\run.ps1 -KitDev`
+runs against the `..\WowTestKit` working copy instead of the pin.
+
+- `tests\wow_stubs.lua` adds what the library and its probe use beyond the kit's core (strict
+  globals, `newproxy` secrets, the widget method recorder, `hooksecurefunc`...). It keeps the
+  per-widget call log the parity and no-repaint checks read (`WoW.widgets`, each one's `w._log`;
+  WowTestKit #67), `_alpha` as the record of every `SetAlpha` asked for (`GetAlpha` reads 1 on
+  a gradient), and `HookScript` kept in `w._hooks`.
+- `tests\harness.lua` loads the library **through the XML's order** (`xmlScripts`, `copyOf`,
+  `loadCopy`), and the probe through its TOC. LibGlass has no TOC of its own, so there's no
+  `test_toc`: a file the XML lists that doesn't exist fails every test's load.
+- `test_methods.lua` checks every widget method the library calls with `Kit.checkMethods`, against
+  the pinned build; `test_probe.lua` does the same for the probe and its host.
+- `tests\run.ps1` runs `luac -p` on the XML's files, the tests and the probe, then every
+  `tests\test_*.lua`.
 
 - **Look parity:** `tests/test_parity.lua` builds the same surfaces with the frozen
   `tests/fixtures/GlassUF-v3.lua` (GUF @ `09b6f0d`) and with the library, and compares every widget
