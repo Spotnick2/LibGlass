@@ -1198,7 +1198,8 @@ end
 -- validity; anything else is the default. The tint is copied, each component
 -- checked (a plain table can hold secrets); nil is "as built".
 local function normLook(key, v)
-    if v == nil or isSecret(v) then return BUTTON_LOOK[key] end
+    -- isSecret first: even `== nil` throws on a secret (porting guide, 70009).
+    if isSecret(v) or v == nil then return BUTTON_LOOK[key] end
     if BUTTON_CHOICES[key] then
         if type(v) == "string" and BUTTON_CHOICES[key][v] then return v end
     elseif key == "showHotkey" or key == "showName" then

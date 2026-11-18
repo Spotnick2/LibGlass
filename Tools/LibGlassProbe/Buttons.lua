@@ -34,7 +34,8 @@ local function instance(material)
 end
 
 -- One probe button, as an addon makes its own: every region by role, and a
--- bronze frame of its own for the skin to fade.
+-- bronze frame of its own for the skin to fade. An empty one (no icon) hides
+-- its icon, as an empty action slot does, so the body shows.
 local function makeButton(parent, x, y, icon)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(SIZE, SIZE)
@@ -42,7 +43,7 @@ local function makeButton(parent, x, y, icon)
     local t = b:CreateTexture(nil, "ARTWORK")
     t:SetAllPoints(b)
     t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    t:SetTexture(icon)
+    if icon then t:SetTexture(icon) else t:Hide() end
     local border = b:CreateTexture(nil, "BACKGROUND")
     border:SetPoint("TOPLEFT", b, "TOPLEFT", -3, 3)
     border:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
@@ -90,12 +91,13 @@ local function buildButtons()
         head:SetText(material)
         for row = 1, 2 do
             local x, y = (c - 1) * COL, -(row - 1) * (SIZE + GAP)
-            local b, regions, cd = makeButton(grid, x, y, ICONS[c])
+            local icon = row == 1 and ICONS[c] or nil
+            local b, regions, cd = makeButton(grid, x, y, icon)
             regions.hotkey:SetText(tostring(c))
             regions.count:SetText(row == 1 and "20" or "")
             skinOne(glass, b, regions, row == 2)
             PB.buttons[#PB.buttons + 1] = { button = b, cd = cd, filled = row == 1 }
-            local b2, r2 = makeButton(grid, x + SIZE + GAP, y, ICONS[c])
+            local b2, r2 = makeButton(grid, x + SIZE + GAP, y, icon)
             r2.hotkey:SetText("")
             r2.count:SetText("")
             skinOne(glass, b2, r2, row == 2)

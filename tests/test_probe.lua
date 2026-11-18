@@ -692,6 +692,16 @@ eq(#BT.PB.skins, 12, "twelve skins: two filled and two empty per material")
 local presets = {}
 for _, s in ipairs(BT.PB.skins) do presets[s.glass.preset] = (presets[s.glass.preset] or 0) + 1 end
 check(presets.classic == 4 and presets.clean == 4 and presets.pearl == 4, "four per material")
+-- The empty examples show their body: no icon over it (Codex on #73).
+for i, s in ipairs(BT.PB.skins) do
+    local icon = s.skin.regions.icon
+    local empty = BT.PB.buttons[i] and not BT.PB.buttons[i].filled
+    if empty then
+        check(not icon:IsShown() and icon._file == nil, "empty example " .. i .. " has no icon")
+    else
+        check(icon:IsShown() and icon._file ~= nil, "filled example " .. i .. " has its icon")
+    end
+end
 local pearlSkin
 for _, s in ipairs(BT.PB.skins) do if s.glass.preset == "pearl" then pearlSkin = s.skin end end
 check(pearlSkin.gloss ~= nil, "a Pearl skin has its face")
