@@ -138,6 +138,49 @@ function Methods.SetHighlightTexture(b, file, blend)
 end
 function Methods.GetHighlightTexture(b) return b._highlight end
 
+-- WowTestKit #68: methods on 70959 the core doesn't implement, which the
+-- button skin (r13, #46) reads: role checks (IsObjectType, the client's
+-- hierarchy as far as asked), the ripple's place (GetEffectiveScale,
+-- GetLeft, GetBottom: _escale, _left, _bottom, nil when unset, as the core's
+-- secure handles read them), the hover under a still pointer (IsMouseOver:
+-- _mouseOver) and letting go of the icon's mask (RemoveMaskTexture). A test
+-- may put a secret in any of the fields. GlassActionBars' stub has the same.
+local KIND_OF = { CheckButton = "Button", Button = "Frame", Cooldown = "Frame", StatusBar = "Frame" }
+function Methods.IsObjectType(w, t)
+    local k = w._type
+    while k do
+        if k == t then return true end
+        k = KIND_OF[k]
+    end
+    return false
+end
+function Methods.GetEffectiveScale(w) return w._escale end
+function Methods.GetLeft(w) return w._left end
+function Methods.GetBottom(w) return w._bottom end
+function Methods.IsMouseOver(w) return w._mouseOver == true end
+function Methods.RemoveMaskTexture(t, m)
+    for i, x in ipairs(t._masks or {}) do
+        if x == m then table.remove(t._masks, i); return end
+    end
+end
+
+-- WowTestKit #69: on 70959 SetText on a font string with no font throws
+-- "Font not set" (the probe's board, /fp steps lg button, 2026-11-18). A
+-- font string has one from SetFont, SetFontObject or CreateFontString's
+-- template, which the core drops (kept here as _fontTemplate).
+local coreCreateFontString, coreSetText = Methods.CreateFontString, Methods.SetText
+function Methods.CreateFontString(w, name, layer, template, ...)
+    local fs = coreCreateFontString(w, name, layer, template, ...)
+    fs._fontTemplate = template
+    return fs
+end
+function Methods.SetText(fs, ...)
+    if fs._type == "FontString" and not (fs._font or fs._fontObject or fs._fontTemplate) then
+        error("FontString:SetText(): Font not set", 2)
+    end
+    return coreSetText(fs, ...)
+end
+
 -- HookScript keeps each hook in w._hooks[script], and never runs it: the
 -- track-length test (test_material) counts the bar's OnSizeChanged hooks
 -- ("never hooked twice") and calls the one it finds, and the stub has no

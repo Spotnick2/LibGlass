@@ -159,6 +159,19 @@ language's players would see.
 - **Logged per cell:** `SetFont`'s success and the file `GetFont` reads back; the client's locale.
   The screenshot is the evidence for boxes. Also `/fp lg fonts`.
 
+## The button skin (#46, r13): `/fp steps lg button`
+
+`Buttons.lua`. `Glass.Button` on probe-made buttons, as an addon makes its own (icon, pushed,
+highlight, hotkey, count, a bronze frame to fade, a cooldown):
+- **One column per material** (Classic, Clean, Pearl), filled buttons on top, empty ones below.
+  The look is the probe's own getter, so the steps change it live: the halo, the ripple, a smoked
+  tint (empty slots keep it rather than frosting), the skins off and back on, a resize and restyle.
+- **Combat:** a `SecureActionButtonTemplate` button (it targets you), skinned out of combat, then
+  restyled, repainted and clicked in combat. The host logs any `ADDON_ACTION_BLOCKED` or
+  `FORBIDDEN` in the same console.
+- **Logged:** each skin's step failures and the look in use. Also `/fp lg button` and
+  `/fp lg buttonlook <key> <value>`.
+
 ## Commands
 
 `/fp lg` lists them all. The r7 board also has manual controls: `r7` (built fresh), `wash 0..1`,

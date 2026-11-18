@@ -3,9 +3,9 @@
     python Tools/make_textures.py
 
 The generator is the source of truth; the .tga files are committed outputs.
-It writes exactly the 27 textures LibGlass.lua names (tests/test_media.lua
-checks Media/ against the code): the 15 of r1, the 8 disc textures of r2 and
-the 4 thin rims of r3.
+It writes exactly the 34 textures LibGlass.lua names (tests/test_media.lua
+checks Media/ against the code): the 15 of r1, the 8 disc textures of r2, the
+4 thin rims of r3 and the 7 button-skin textures of r13 (Glass.Button, #46).
 Lifted from GlassUnitFrames @ 09b6f0d,
 without the probe's earlier iterations (rim..rim4, sheen, late), which stay
 with GlassProbe. Never rename an output: frames built earlier keep the path.
@@ -264,6 +264,154 @@ def main():
         write_tga("disc_rim" + suffix, rim)
         write_tga("disc_rim_dark" + suffix, dark)
         write_tga("disc_shadow" + suffix, disc_shadow(size, outset, sigma, drop, alpha))
+
+    button_textures()
+
+
+# ------------------------------------------------------------------------------
+# The button skin (r13, Glass.Button, #46). Moved from GlassActionBars'
+# Tools/make_rim.py (@ eb3afd3, same author, MIT), unchanged: each output is
+# byte-identical to GAB's Media/Button*.tga at that commit (the r13 PR records
+# the hashes). Only the names follow this repo's convention.
+#
+# The rim: LibGlass's rims are subtle by design (rim_thin_small peaks at
+# 86/255), so on a button with a clear body the outline was too faint even at
+# full alpha (GAB owner, 2026-10-13). This one peaks near 251/255 so a tune
+# has headroom. The same geometry as body_mask_small: 32x32, radius 7 from an
+# inset of 0.5 px, 9-sliced with margins 8 (corners render 1:1). A thin crisp
+# line (~1.3 px) just inside the edge, strongest along the top and the upper
+# corners, fading down the sides (in the stretched middle slice), the bottom
+# subdued; a transparent centre with only a faint band hugging the line.
+# White everywhere, the shape in alpha only.
+# ------------------------------------------------------------------------------
+
+BTN, BTN_INSET, BTN_RADIUS = 32, 0.5, 7        # body_mask_small's geometry
+BTN_LINE = 1.3                                 # px, the line's width inside the edge
+BTN_GLOW = 1.6                                 # px, the faint band just inside the line
+BTN_GLOW_ALPHA = 0.22                          # the band's strength, relative to the line
+BTN_TOP, BTN_SIDE_TOP, BTN_SIDE_BOTTOM, BTN_BOTTOM = 1.0, 0.85, 0.38, 0.24   # the line by height
+
+
+def smoothstep(e0, e1, x):
+    t = np.clip((x - e0) / (e1 - e0), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def button_height_weight(size):
+    """The rim's strength by row: TOP over the top corner rows, SIDE_TOP at the top of
+    the stretched middle, easing to SIDE_BOTTOM at its foot, BOTTOM along the bottom edge."""
+    ys = np.arange(size, dtype=np.float64) + 0.5
+    m0, m1 = 8.0, size - 8.0                     # the stretched middle (slice margins 8)
+    w = np.empty(size)
+    top = ys < m0
+    mid = (ys >= m0) & (ys <= m1)
+    bot = ys > m1
+    w[top] = BTN_TOP + (BTN_SIDE_TOP - BTN_TOP) * smoothstep(0, m0, ys[top])
+    w[mid] = BTN_SIDE_TOP + (BTN_SIDE_BOTTOM - BTN_SIDE_TOP) * smoothstep(m0, m1, ys[mid])
+    w[bot] = BTN_SIDE_BOTTOM + (BTN_BOTTOM - BTN_SIDE_BOTTOM) * smoothstep(m1, size, ys[bot])
+    return w[:, None]
+
+
+def button_rim():
+    d = rounded_rect_sdf(BTN, BTN, BTN_INSET, BTN_RADIUS)
+    line = band(d, -BTN_LINE, 0.0, soft=0.55)
+    glow = band(d, -(BTN_LINE + BTN_GLOW), -BTN_LINE, soft=0.8) * BTN_GLOW_ALPHA
+    alpha = np.maximum(line, glow) * button_height_weight(BTN)
+    rgba = np.ones((BTN, BTN, 4))
+    rgba[..., 3] = alpha
+    return rgba
+
+
+# The hover halo: the same rounded boundary (radius 7) centred in 16 px of
+# transparent padding, so the glow outside the line isn't clipped. 64x64,
+# 9-sliced with margins 24, anchored 16 UI px beyond the button so the line sits
+# on its edge. A thicker line, a soft glow outward, a faint inner fill (the wash
+# over the icon). White; the warm colour is a vertex colour.
+HALO, HALO_PAD = 64, 16
+HALO_LINE, HALO_GLOW, HALO_GLOW_ALPHA, HALO_FILL = 2.5, 4.0, 0.55, 0.16
+
+
+def button_halo():
+    d = rounded_rect_sdf(HALO, HALO, HALO_PAD + BTN_INSET, BTN_RADIUS)
+    line = band(d, -HALO_LINE, 0.0, soft=0.6)
+    glow = np.where(d > 0, HALO_GLOW_ALPHA * np.exp(-np.maximum(d, 0) / HALO_GLOW), 0.0)
+    fill = coverage(d + HALO_LINE) * HALO_FILL
+    rgba = np.ones((HALO, HALO, 4))
+    rgba[..., 3] = np.maximum(np.maximum(line, glow), fill)
+    return rgba
+
+
+def button_ripple():
+    """The press ripple: a soft white disc, strongest in the middle, fading to the edge."""
+    ys, xs = np.mgrid[0:64, 0:64].astype(np.float64) + 0.5
+    r = np.hypot(xs - 32, ys - 32) / 31.0
+    rgba = np.ones((64, 64, 4))
+    rgba[..., 3] = np.clip(1 - r, 0, 1) ** 0.8 * 0.9
+    return rgba
+
+
+def button_mask():
+    """The button's rounded square as a mask (unsliced, stretched over the button).
+    White RGB everywhere, the shape in alpha (GAB's form, kept for byte parity)."""
+    rgba = np.ones((BTN, BTN, 4))
+    rgba[..., 3] = coverage(rounded_rect_sdf(BTN, BTN, BTN_INSET, BTN_RADIUS))
+    return rgba
+
+
+def button_socket_rim():
+    """Pearl's empty socket: the lower lip catches light, the upper edge recedes.
+    The rim's corner geometry and 8 px slices; no inner halo."""
+    d = rounded_rect_sdf(BTN, BTN, BTN_INSET, BTN_RADIUS)
+    y = (np.arange(BTN, dtype=np.float64) + 0.5)[:, None] / BTN
+    weight = 0.18 + 0.82 * smoothstep(0.10, 0.95, y)
+    rgba = np.ones((BTN, BTN, 4))
+    rgba[..., 3] = band(d, -1.15, 0, soft=0.55) * weight
+    return rgba
+
+
+def button_socket_shade():
+    """White alpha texture, painted black at runtime: a narrow upper inset."""
+    d = rounded_rect_sdf(BTN, BTN, BTN_INSET, BTN_RADIUS)
+    y = (np.arange(BTN, dtype=np.float64) + 0.5)[:, None] / BTN
+    rgba = np.ones((BTN, BTN, 4))
+    rgba[..., 3] = band(d, -2.4, -0.3, soft=0.65) * (1 - smoothstep(0.10, 0.70, y))
+    return rgba
+
+
+def button_gloss():
+    """Pearl's reflection on a filled button: a soft highlight at the top.
+
+    Brightest just under the top edge in the middle, tapering to the sides, its
+    lower edge an arc (the sides fade sooner, a curved face), fading smoothly into
+    the icon by about a quarter of the way down, no plateau and no edge. Tried and
+    rejected in GAB: a bell fading out from 12% evenly across (a faint grey haze),
+    and an even band down to 30% with a definite edge (a grey cap; owner,
+    2026-10-19). The mask at runtime rounds the corners. A static bitmap (not
+    SetGradient, so SetAlpha works on Forever), BLEND white.
+    """
+    n = 64
+    y = (np.arange(n, dtype=np.float64) + 0.5)[:, None] / n
+    u = (np.arange(n, dtype=np.float64) + 0.5)[None, :] / n * 2 - 1   # -1 left .. 1 right
+    arc = y + 0.10 * u ** 2                                           # the sides fade sooner
+    down = (1 - smoothstep(0.0, 0.27, arc)) ** 1.5                    # concentrated at the top
+    across = 0.35 + 0.65 * (1 - smoothstep(0.2, 1.0, np.abs(u)))      # tapering to the sides
+    rgba = np.ones((n, n, 4))
+    rgba[..., 3] = down * across
+    return rgba
+
+
+def button_textures():
+    rim = button_rim()
+    assert rim[9:BTN - 9, 9:BTN - 9, 3].max() == 0, "the rim's centre must be fully transparent"
+    write_tga("button_rim", rim)
+    halo = button_halo()
+    assert halo[0, 0, 3] < 0.01 and halo[0, HALO // 2, 3] < 0.05, "the halo's padding must fade out"
+    write_tga("button_halo", halo)
+    write_tga("button_ripple", button_ripple())
+    write_tga("button_mask", button_mask())
+    write_tga("button_socket_rim", button_socket_rim())
+    write_tga("button_socket_shade", button_socket_shade())
+    write_tga("button_gloss", button_gloss())
 
 
 if __name__ == "__main__":

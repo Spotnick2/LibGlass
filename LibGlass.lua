@@ -16,6 +16,7 @@
 --   Glass.SetSurfaceAlpha(g, "dark", 0.5)              -- r9: one region's alpha (rim, dark, grain, shadow)
 --   local rf = Glass.Reflect(g, frame, { header = 70 }) -- r9: the reflective shell's lit layers
 --   local pill, g = Glass.Pill(button)                 -- r5: a small glass button behind a symbol
+--   local skin = Glass.Button(button, regions, opts)   -- r13: the glass button skin (rim over the icon)
 --
 -- Layer stack on a host frame, bottom to top:
 --   shadow -> tint -> grain -> wash      (on the host, masked to a rounded rect)
@@ -38,7 +39,7 @@
 --   and TUNABLES; it never repaints or rebuilds what an older copy built.
 -- - lib.ready = MINOR is the last line: New refuses a half-loaded copy.
 
-local MAJOR, MINOR = "LibGlass-1.0", 12
+local MAJOR, MINOR = "LibGlass-1.0", 13
 local lib = LibStub:NewLibrary(MAJOR, MINOR)
 if not lib then return end   -- an equal or newer copy is already loaded
 
@@ -209,7 +210,9 @@ do
     for _, name in ipairs({ "Apply", "Bar", "Mask", "Font", "Sheen", "SetBar", "Smooth", "Inset", "ContentLevel",
                             "SetFillAlpha", "SetRimAlpha", "SetTrackAlpha", "SetFillEnd", "SetEdgeAlpha", "SetEdge",
                             "SetFont", "Disc", "SetSurfaceTint", "SetSurfaceEnabled", "Pill", "RelevelPill",
-                            "SetWash", "SetSurfaceRim", "SetSurfaceAlpha", "Reflect", "SetTrackLength" }) do
+                            "SetWash", "SetSurfaceRim", "SetSurfaceAlpha", "Reflect", "SetTrackLength",
+                            "Button", "ButtonSkin", "ButtonDefault", "SetButtonEmpty", "RefreshButton",
+                            "RefreshButtons", "RestyleButton", "SetButtonShown" }) do
         if not have[name] then
             table.insert(lib.FUNCTIONS, name)
             have[name] = true
@@ -1092,6 +1095,656 @@ function lib.impl.SetFont(inst, key)
 end
 
 --------------------------------------------------------------------------------
+-- The button skin (r13, #46): the glass face on a button, moved from Glass
+-- Action Bars' Buttons.lua (@ eb3afd3) so other addons (Apotheca) wear the
+-- same skin. docs/GLASS-MATERIAL.md section 8 has the look and the contract.
+--
+--   body    our frame one level UNDER the button: the glass body (tint, wash)
+--           behind the icon, the mouse off
+--   g.top   one level OVER the button, never mouse-enabled: the rim (our own
+--           button_rim) over the icon's edge, the halo, the ripple, Pearl's
+--           gloss and socket. Over the cooldown sweep, by choice.
+--   the caller's regions: art faded, the pushed texture made a bright rim,
+--           the text in the glass font, the highlight softened. Never owned.
+--
+-- Nothing is written on the button: a skin lives in lib.buttons (button ->
+-- skin) and in the handle Button returns. Setup (textures and anchors on the
+-- caller's regions) runs at Button and RestyleButton; paint (alphas, colours,
+-- fonts) is combat-safe and never touches setup. The look is read through the
+-- caller's getters when it is used, so hooks installed once stay current.
+-- Every step runs under its own pcall: one refusal leaves the rest done.
+--------------------------------------------------------------------------------
+
+-- Published, read-only: the tune keys and the look's valid values.
+lib.BUTTON = lib.BUTTON or {}
+fill(lib.BUTTON, {
+    TUNE_ORDER = { "rim", "empty", "dark", "wash", "body", "frostGrey", "frostAlpha", "frostRim", "gloss", "socketShade" },
+    LOOK = {
+        hover = { "off", "glow", "halo" },             -- glow: the button's highlight, softened
+        press = { "off", "flash", "ripple" },          -- flash: the pushed rim; ripple: plus a ripple on a click
+        emptySlots = { "hidden", "faint", "half", "full", "frosted" },
+    },
+})
+lib.shared.BUTTON = lib.BUTTON
+-- Kept across upgrades, in place: button -> skin, and the running effects.
+lib.buttons = lib.buttons or setmetatable({}, { __mode = "k" })
+lib.buttonFx = lib.buttonFx or { fading = setmetatable({}, { __mode = "k" }), rippling = setmetatable({}, { __mode = "k" }) }
+
+-- Private to this copy (Codex on #46: the recipes stay free to change).
+-- GAB's tuned numbers (owner, 2026-10-13), and Pearl's own (#44 there,
+-- 2026-10-19); ButtonDefault reads them by the instance's material.
+local BUTTON_TUNE = { rim = 0.85, empty = 0.75, dark = 0.15, wash = 0.04, body = 0.25,
+                      frostGrey = 0.9, frostAlpha = 0.08, frostRim = 0.35, gloss = 0, socketShade = 0 }
+local BUTTON_PEARL = { rim = 0.70, dark = 0.20, frostGrey = 0.40, frostAlpha = 0.22,
+                       frostRim = 0.60, gloss = 0.08, socketShade = 0.18 }
+local BUTTON_LOOK = { hover = "glow", press = "flash", emptySlots = "frosted", tintWash = 1,
+                      showHotkey = true, showName = true }   -- tint: nil, as built
+local BUTTON_CHOICES = {}
+for key, list in pairs(lib.BUTTON.LOOK) do
+    BUTTON_CHOICES[key] = {}
+    for _, v in ipairs(list) do BUTTON_CHOICES[key][v] = true end
+end
+local BUTTON_EMPTY = { hidden = 0, faint = 0.25, half = 0.5, full = 1 }   -- frosted: the frostRim tune
+local BUTTON_HIGHLIGHT = 0.4      -- the hover glow, softened as Pill does
+local BUTTON_RIM_MARGIN = 8       -- button_rim and the sockets: body_mask_small's geometry
+local HALO = { pad = 16, margin = 24, color = { 1, 0.94, 0.8 }, fadeIn = 0.1, fadeOut = 0.15 }
+local RIPPLE = { duration = 0.3, from = 0.3, to = 1.6, alpha = 0.6 }
+local BUTTON_ROLES = { icon = "Texture", pushed = "Texture", highlight = "Texture",
+                       hotkey = "FontString", count = "FontString", name = "FontString" }
+local BUTTON_HOOKS = { "OnEnter", "OnLeave", "OnHide", "OnMouseDown" }
+
+-- Secret values (porting guide section 4): never compared, truth-tested or
+-- used in arithmetic. issecretvalue through rawget: strict test stubs lack it.
+local function isSecret(v)
+    local f = rawget(_G, "issecretvalue")
+    return f ~= nil and f(v) == true
+end
+local function plain(v)
+    if isSecret(v) then return nil end
+    return v
+end
+
+local function widgetIs(obj, t)
+    if type(obj) ~= "table" or type(obj.IsObjectType) ~= "function" then return false end
+    local ok, yes = pcall(obj.IsObjectType, obj, t)
+    return ok and plain(yes) == true
+end
+
+-- A failure, recorded once per step as a plain string and handed to the
+-- caller's onError (under pcall: its error stays its own).
+local function errText(e)
+    if type(e) == "string" then return e end
+    if not isSecret(e) then
+        local ok, s = pcall(tostring, e)
+        if ok and type(s) == "string" then return s end
+    end
+    return "(unprintable error)"
+end
+
+local function fail(skin, step, e)
+    if skin.failures[step] ~= nil then return end
+    local msg = errText(e)
+    skin.failures[step] = msg
+    if skin.onError then pcall(skin.onError, step, msg) end
+end
+
+local function try(skin, step, fn, ...)
+    local ok, e = pcall(fn, ...)
+    if not ok then fail(skin, step, e) end
+    return ok
+end
+
+-- The caller's look, checked at one boundary: secrecy first, then type and
+-- validity; anything else is the default. The tint is copied, each component
+-- checked (a plain table can hold secrets); nil is "as built".
+local function normLook(key, v)
+    -- isSecret first: even `== nil` throws on a secret (porting guide, 70009).
+    if isSecret(v) or v == nil then return BUTTON_LOOK[key] end
+    if BUTTON_CHOICES[key] then
+        if type(v) == "string" and BUTTON_CHOICES[key][v] then return v end
+    elseif key == "showHotkey" or key == "showName" then
+        if type(v) == "boolean" then return v end
+    elseif key == "tintWash" then
+        if inRange(v, 0, 4) then return v end
+    elseif key == "tint" then
+        if type(v) ~= "table" then return nil end
+        local c = {}
+        for i = 1, 4 do
+            local x = v[i]
+            if isSecret(x) or not (inRange(x, 0, 1) or (i == 4 and x == nil)) then return nil end
+            c[i] = x
+        end
+        return c
+    end
+    return BUTTON_LOOK[key]
+end
+
+local function lookValue(skin, key)
+    local v
+    if skin.look then
+        local ok, r = pcall(skin.look, key)
+        if ok then v = r else fail(skin, "look", r) end
+    end
+    return normLook(key, v)
+end
+
+local function tuneValue(skin, key)
+    if skin.tune then
+        local ok, v = pcall(skin.tune, key)
+        if not ok then
+            fail(skin, "tune", v)
+        elseif not isSecret(v) and inRange(v, 0, 1) then
+            return v
+        end
+    end
+    return lib.impl.ButtonDefault(skin.inst, key)
+end
+
+local function isPearl(skin) return skin.inst.preset == "pearl" end
+
+-- An empty slot's glass, as a factor (1 on a filled one).
+local function emptyFactor(skin)
+    if skin.occupied then return 1 end
+    local mode = lookValue(skin, "emptySlots")
+    if mode == "frosted" then return tuneValue(skin, "frostRim") end
+    return BUTTON_EMPTY[mode]
+end
+
+-- The frosted empty slot's fill: a pale neutral grey on Pearl, a cool one
+-- otherwise, at frostAlpha.
+local function frost(skin)
+    local gr = tuneValue(skin, "frostGrey")
+    if isPearl(skin) then return { gr, gr, gr, tuneValue(skin, "frostAlpha") } end
+    return { gr, math.min(1, gr + 0.01), math.min(1, gr + 0.04), tuneValue(skin, "frostAlpha") }
+end
+
+-- The body: the tint and the wash, scaled by the empty factor; a frosted
+-- empty slot replaces the fill only on as-built glass (a tinted one keeps
+-- its tint). No grain at button size.
+local function paintBody(skin)
+    local inst, g = skin.inst, skin.g
+    local tint = lookValue(skin, "tint")
+    local wash, body, own
+    if not skin.occupied and tint == nil and lookValue(skin, "emptySlots") == "frosted" then
+        wash, body, own = tuneValue(skin, "wash"), 1, frost(skin)   -- the fill's own alpha, unscaled
+    else
+        local f = emptyFactor(skin)
+        wash, body = tuneValue(skin, "wash") * f, tuneValue(skin, "body") * f
+    end
+    local built = g.tint.glassColor or inst.STYLE.tint
+    local c = own or tint or built
+    local a = (c[4] or built[4]) * body
+    lib.impl.SetSurfaceTint(inst, g, c[1], c[2], c[3], a)
+    g.tint:SetShown(a > 0)
+    if g.grain then g.grain:SetAlpha(0) end
+    if g.wash then
+        lib.impl.SetWash(inst, g, math.min(1, (inst.STYLE.wash or 0) * lookValue(skin, "tintWash") * wash))
+    end
+end
+
+-- The rim, and Pearl's face: a frosted empty slot shows the recessed socket
+-- instead of the raised rim, a filled one the reflection.
+local function paintRim(skin)
+    local g = skin.g
+    local f = skin.occupied and 1 or tuneValue(skin, "empty") * emptyFactor(skin)
+    local recessed = skin.socketRim and not skin.occupied and lookValue(skin, "emptySlots") == "frosted"
+    g.rim:SetAlpha(recessed and 0 or tuneValue(skin, "rim") * f)
+    g.dark:SetAlpha(recessed and 0 or tuneValue(skin, "dark") * f)
+    if skin.socketRim then
+        skin.socketRim:SetAlpha(recessed and tuneValue(skin, "rim") * f or 0)
+        skin.socketShade:SetAlpha(recessed and tuneValue(skin, "socketShade") * emptyFactor(skin) or 0)
+        skin.gloss:SetAlpha(skin.occupied and tuneValue(skin, "gloss") or 0)
+    end
+end
+
+local function rimTexture(t)
+    t:SetTexture(lib.MEDIA .. "button_rim")
+    slice(t, BUTTON_RIM_MARGIN)
+end
+
+-- The body under the button, g.top over it.
+local function relevel(skin)
+    local level = skin.button:GetFrameLevel()
+    skin.body:SetFrameLevel(math.max(0, level - 1))
+    skin.g.top:SetFrameLevel(level + 1)
+end
+
+-- Small fonts under 40 wide, read at Button and RestyleButton (45 when unreadable).
+local function readSmall(skin)
+    local w = plain(skin.button:GetWidth())
+    skin.small = (type(w) == "number" and w or 45) < 40
+end
+
+-- Text: the hotkey and the count in the glass font, outlined; the caller
+-- keeps anchoring, colouring and filling them.
+local function styleText(skin)
+    local r = skin.regions
+    local f = lib.FONTS[skin.inst.fontKey] or lib.FONTS.arial
+    if r.hotkey then
+        r.hotkey:SetFont(f.file, (skin.small and 10 or 12) + f.bump, "OUTLINE")
+        r.hotkey:SetAlpha(lookValue(skin, "showHotkey") and 1 or 0)
+    end
+    if r.count then r.count:SetFont(f.file, (skin.small and 11 or 14) + f.bump, "OUTLINE") end
+    if r.name then r.name:SetAlpha(lookValue(skin, "showName") and 1 or 0) end
+end
+
+-- The highlight: softened for glow, off when the halo (or nothing) answers.
+local function applyHighlight(skin)
+    local h = skin.regions.highlight
+    if h then h:SetAlpha(lookValue(skin, "hover") == "glow" and BUTTON_HIGHLIGHT or 0) end
+end
+
+-- The pressed look's alpha: the live part, safe in combat.
+local function pushedAlpha(skin)
+    local p = skin.regions.pushed
+    if p then p:SetAlpha(lookValue(skin, "press") == "off" and 0 or 1) end
+end
+
+-- The pressed look's setup: texture, anchors and blend on the caller's
+-- region, at Button and RestyleButton only, never from a paint.
+local function stylePushed(skin)
+    local p = skin.regions.pushed
+    if not p then return end
+    rimTexture(p)
+    p:ClearAllPoints()
+    p:SetAllPoints(skin.button)
+    p:SetVertexColor(1, 1, 1, 1)
+    p:SetBlendMode("ADD")
+    pushedAlpha(skin)
+end
+
+-- The fades, each on its own and in name order, then the pressed look.
+local function styleArt(skin)
+    local fade = skin.regions.fade
+    if fade then
+        local names = {}
+        for name in pairs(fade) do names[#names + 1] = name end
+        table.sort(names)
+        for _, name in ipairs(names) do
+            local r = fade[name]
+            try(skin, "fade:" .. name, r.SetAlpha, r, 0)
+        end
+    end
+    try(skin, "pushed", stylePushed, skin)
+end
+
+-- The icon rounded to the glass's square: a mask on the icon's own frame,
+-- made once and kept, so turning the skin back on re-attaches the same one.
+local function attachMask(skin)
+    local icon = skin.regions.icon
+    if not skin.iconMask then
+        local m = icon:GetParent():CreateMaskTexture()
+        m:SetTexture(lib.MEDIA .. "button_mask", MASK_WRAP, MASK_WRAP)
+        m:SetAllPoints(icon)
+        skin.iconMask = m
+    end
+    icon:AddMaskTexture(skin.iconMask)
+end
+
+-- Pearl's face, on a Pearl instance only: a reflection over a filled slot's
+-- icon (under the rim and the halo), and a recessed socket for a frosted
+-- empty one, its lit lip at the rim's sublayer and its shade at the dark
+-- line's. paintRim sets their alphas.
+local function makePearlFace(skin)
+    if not isPearl(skin) then return end
+    local top, body = skin.g.top, skin.body
+    local mask = top:CreateMaskTexture()
+    mask:SetTexture(lib.MEDIA .. "button_mask", MASK_WRAP, MASK_WRAP)
+    mask:SetAllPoints(body)
+    local gloss = top:CreateTexture(nil, "ARTWORK", nil, 0)
+    gloss:SetAllPoints(body)
+    gloss:SetTexture(lib.MEDIA .. "button_gloss")
+    gloss:AddMaskTexture(mask)
+    gloss:SetAlpha(0)
+    local function edge(file, sub, r, g, b)
+        local t = top:CreateTexture(nil, "OVERLAY", nil, sub)
+        t:SetAllPoints(top)
+        t:SetTexture(file)
+        slice(t, BUTTON_RIM_MARGIN)
+        t:SetVertexColor(r, g, b, 1)
+        t:SetAlpha(0)
+        return t
+    end
+    skin.gloss = gloss
+    skin.socketRim = edge(lib.MEDIA .. "button_socket_rim", 6, 1, 1, 1)
+    skin.socketShade = edge(lib.MEDIA .. "button_socket_shade", 4, 0, 0, 0)
+end
+
+-- The hover halo: 16 px round the body, 9-sliced at 24, warm white, ADD.
+local function makeHalo(skin)
+    local t = skin.g.top:CreateTexture(nil, "ARTWORK", nil, 7)
+    t:SetTexture(lib.MEDIA .. "button_halo")
+    slice(t, HALO.margin)
+    t:SetPoint("TOPLEFT", skin.body, "TOPLEFT", -HALO.pad, HALO.pad)
+    t:SetPoint("BOTTOMRIGHT", skin.body, "BOTTOMRIGHT", HALO.pad, -HALO.pad)
+    t:SetVertexColor(HALO.color[1], HALO.color[2], HALO.color[3], 1)
+    t:SetBlendMode("ADD")
+    t:SetAlpha(0)
+    skin.halo = t
+end
+
+-- The one driver for every skin: its OnUpdate is set while a halo fades or
+-- a ripple swells, and dispatches to this copy's ButtonStep when it runs.
+lib.buttonOnUpdate = lib.buttonOnUpdate or function(_, elapsed) lib.impl.ButtonStep(elapsed) end
+
+local function startDriver()
+    if not lib.buttonDriver then lib.buttonDriver = CreateFrame("Frame") end
+    lib.buttonDriver:SetScript("OnUpdate", lib.buttonOnUpdate)
+end
+
+local function fadeTo(skin, target)
+    local fading = lib.buttonFx.fading
+    if not skin.halo or (fading[skin] == nil and skin.halo:GetAlpha() == target) then return end
+    fading[skin] = target
+    startDriver()
+end
+
+local function clearEffects(skin)
+    lib.buttonFx.fading[skin], lib.buttonFx.rippling[skin] = nil, nil
+    if skin.halo then skin.halo:SetAlpha(0) end
+    if skin.ripple then skin.ripple:Hide() end
+end
+
+-- A click: the ripple from the pointer, inside the glass's rounded square.
+-- One ripple per button, made on its first click. Every read is plain-checked;
+-- a secret one starts it from the centre, a 36 px base.
+local function startRipple(skin)
+    if lookValue(skin, "press") ~= "ripple" then return end
+    local b = skin.body
+    if not skin.ripple then
+        local mask = skin.g.top:CreateMaskTexture()
+        mask:SetTexture(lib.MEDIA .. "button_mask", MASK_WRAP, MASK_WRAP)
+        mask:SetAllPoints(b)
+        local t = skin.g.top:CreateTexture(nil, "OVERLAY")
+        t:SetTexture(lib.MEDIA .. "button_ripple")
+        t:SetBlendMode("ADD")
+        t:AddMaskTexture(mask)
+        t:Hide()
+        skin.ripple = t
+    end
+    local w = plain(b:GetWidth())
+    skin.rippleBase = type(w) == "number" and w > 0 and w or 36
+    local x, y = GetCursorPosition()
+    x, y = plain(x), plain(y)
+    local es, l, bt = plain(b:GetEffectiveScale()), plain(b:GetLeft()), plain(b:GetBottom())
+    skin.ripple:ClearAllPoints()
+    if type(x) == "number" and type(y) == "number" and type(es) == "number" and es > 0
+            and type(l) == "number" and type(bt) == "number" then
+        skin.ripple:SetPoint("CENTER", b, "BOTTOMLEFT", x / es - l, y / es - bt)
+    else
+        skin.ripple:SetPoint("CENTER", b, "CENTER")
+    end
+    skin.ripple:SetSize(skin.rippleBase * RIPPLE.from, skin.rippleBase * RIPPLE.from)
+    skin.ripple:SetAlpha(RIPPLE.alpha)
+    skin.ripple:Show()
+    lib.buttonFx.rippling[skin] = 0
+    startDriver()
+end
+
+-- The pointer and a click, on the button's own scripts (HookScript: the
+-- button's handlers run first and untouched; never OnClick). Each hook
+-- dispatches at call time, carrying only the skin (data).
+local function hookButton(skin)
+    for _, what in ipairs(BUTTON_HOOKS) do
+        skin.button:HookScript(what, function() lib.impl.ButtonHook(skin, what) end)
+    end
+end
+
+function lib.impl.ButtonHook(skin, what)
+    if type(skin) ~= "table" or skin.off or not skin.failures then return end
+    if what == "OnEnter" then
+        try(skin, "hover", function() if lookValue(skin, "hover") == "halo" then fadeTo(skin, 1) end end)
+    elseif what == "OnLeave" then
+        try(skin, "hover", fadeTo, skin, 0)
+    elseif what == "OnHide" then
+        try(skin, "effects", clearEffects, skin)
+    elseif what == "OnMouseDown" then
+        try(skin, "ripple", startRipple, skin)
+    end
+end
+
+-- One frame of every running effect. A skin an older copy built is read by
+-- the fields every copy keeps (halo, ripple, rippleBase).
+function lib.impl.ButtonStep(elapsed)
+    local fx = lib.buttonFx
+    for s, target in pairs(fx.fading) do
+        if s.halo then
+            local a = s.halo:GetAlpha()
+            local d = elapsed / (target > a and HALO.fadeIn or HALO.fadeOut)
+            a = target > a and math.min(target, a + d) or math.max(target, a - d)
+            s.halo:SetAlpha(a)
+            if a == target then fx.fading[s] = nil end
+        else
+            fx.fading[s] = nil
+        end
+    end
+    for s, t in pairs(fx.rippling) do
+        if s.ripple then
+            t = t + elapsed
+            local p = math.min(1, t / RIPPLE.duration)
+            local size = (s.rippleBase or 36) * (RIPPLE.from + (RIPPLE.to - RIPPLE.from) * p)
+            s.ripple:SetSize(size, size)
+            s.ripple:SetAlpha(RIPPLE.alpha * (1 - p))
+            if p >= 1 then
+                fx.rippling[s] = nil
+                s.ripple:Hide()
+            else
+                fx.rippling[s] = t
+            end
+        else
+            fx.rippling[s] = nil
+        end
+    end
+    if not next(fx.fading) and not next(fx.rippling) and lib.buttonDriver then
+        lib.buttonDriver:SetScript("OnUpdate", nil)
+    end
+end
+
+-- The effects follow the look: the halo off (or up, under a still pointer),
+-- a ripple stopped when the press look no longer ripples.
+local function syncEffects(skin)
+    if lookValue(skin, "hover") ~= "halo" then
+        lib.buttonFx.fading[skin] = nil
+        if skin.halo then skin.halo:SetAlpha(0) end
+    elseif plain(skin.button:IsMouseOver()) == true then
+        fadeTo(skin, 1)
+    end
+    if lookValue(skin, "press") ~= "ripple" and skin.ripple then
+        lib.buttonFx.rippling[skin] = nil
+        skin.ripple:Hide()
+    end
+end
+
+-- Paint: alphas, colours and fonts only, each part on its own.
+local function paintSkin(skin)
+    try(skin, "highlight", applyHighlight, skin)
+    try(skin, "effects", syncEffects, skin)
+    try(skin, "press", pushedAlpha, skin)
+    try(skin, "rim", paintRim, skin)
+    try(skin, "paint", paintBody, skin)
+    try(skin, "text", styleText, skin)
+end
+
+-- This instance's skin, still registered.
+local function ownSkin(inst, skin)
+    return type(skin) == "table" and skin.inst == inst and skin.button ~= nil and lib.buttons[skin.button] == skin
+end
+
+-- The glass on one button (setup: out of combat). regions, by role, each
+-- optional and type-checked: icon, pushed, highlight (Textures), hotkey,
+-- count, name (FontStrings), and fade = { <name> = region, ... }, the
+-- caller's art faded to 0 and never owned. opts: look(key), tune(key),
+-- onError(step, msg), maskIcon, inset (px, the glass inside the button).
+-- Returns the skin; a second call from this instance returns the same one.
+-- nil, "combat" in combat (nothing built); nil, "skinned" when another
+-- instance holds the button. Bad arguments throw, before anything is built.
+function lib.impl.Button(inst, button, regions, opts)
+    if not widgetIs(button, "Button") then
+        error(MAJOR .. ": Button takes a Button, got " .. tostring(button), 3)
+    end
+    if regions ~= nil and type(regions) ~= "table" then
+        error(MAJOR .. ": Button's regions must be a table, got " .. tostring(regions), 3)
+    end
+    if opts ~= nil and type(opts) ~= "table" then
+        error(MAJOR .. ": Button's options must be a table, got " .. tostring(opts), 3)
+    end
+    opts = opts or {}
+    local copy = {}
+    for key, r in pairs(regions or {}) do
+        if key == "fade" then
+            if type(r) ~= "table" then error(MAJOR .. ": Button's fade must be a map of name = region", 3) end
+            copy.fade = {}
+            for name, region in pairs(r) do
+                if type(name) ~= "string" or type(region) ~= "table" or type(region.SetAlpha) ~= "function" then
+                    error(MAJOR .. ": Button's fade." .. tostring(name) .. " must be a region", 3)
+                end
+                copy.fade[name] = region
+            end
+        elseif BUTTON_ROLES[key] then
+            if not widgetIs(r, BUTTON_ROLES[key]) then
+                error(MAJOR .. ": Button's " .. tostring(key) .. " must be a " .. BUTTON_ROLES[key], 3)
+            end
+            copy[key] = r
+        else
+            error(MAJOR .. ": Button has no region role " .. tostring(key), 3)
+        end
+    end
+    for _, k in ipairs({ "look", "tune", "onError" }) do
+        if opts[k] ~= nil and type(opts[k]) ~= "function" then
+            error(MAJOR .. ": Button's " .. k .. " must be a function", 3)
+        end
+    end
+    if opts.inset ~= nil and not inRange(opts.inset, 0, 32) then
+        error(MAJOR .. ": Button's inset must be a number of px in 0..32", 3)
+    end
+
+    local held = lib.buttons[button]
+    if held then
+        if held.inst == inst then return held end
+        return nil, "skinned"
+    end
+    if InCombatLockdown() then return nil, "combat" end
+
+    local body = CreateFrame("Frame", nil, button)
+    if opts.inset then
+        body:SetPoint("TOPLEFT", button, "TOPLEFT", opts.inset, -opts.inset)
+        body:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -opts.inset, opts.inset)
+    else
+        body:SetAllPoints(button)
+    end
+    body:EnableMouse(false)
+    local g = lib.impl.Apply(inst, body, "small")
+    g.shadow:SetAlpha(0)   -- it would spill onto the next button (Pill's rule)
+    g.grain:SetAlpha(0)
+    g.rim.glassOwnAlpha = true   -- the skin paints it: SetRimAlpha leaves it alone
+    rimTexture(g.rim)
+
+    local skin = { inst = inst, button = button, body = body, g = g, regions = copy, occupied = true,
+                   failures = {}, look = opts.look, tune = opts.tune, onError = opts.onError,
+                   maskIcon = opts.maskIcon and true or false }
+    readSmall(skin)
+    lib.buttons[button] = skin
+    table.insert(inst._buttons, skin)
+
+    try(skin, "pearl", makePearlFace, skin)
+    if skin.maskIcon and copy.icon then try(skin, "mask", attachMask, skin) end
+    try(skin, "paint", paintBody, skin)
+    try(skin, "rim", paintRim, skin)
+    try(skin, "level", relevel, skin)
+    styleArt(skin)
+    try(skin, "text", styleText, skin)
+    try(skin, "highlight", applyHighlight, skin)
+    try(skin, "halo", makeHalo, skin)
+    try(skin, "feedback", hookButton, skin)
+    return skin
+end
+
+-- This instance's skin on `button`, or nil.
+function lib.impl.ButtonSkin(inst, button)
+    local s = button ~= nil and lib.buttons[button]
+    if s and s.inst == inst then return s end
+    return nil
+end
+
+-- This instance's default for a tune key, by its material (Pearl's own
+-- numbers on a Pearl instance), or nil for an unknown key.
+function lib.impl.ButtonDefault(inst, key)
+    if type(inst) == "table" and inst.preset == "pearl" and BUTTON_PEARL[key] ~= nil then return BUTTON_PEARL[key] end
+    return BUTTON_TUNE[key]
+end
+
+-- The slot is empty (true) or filled (false). Anything else (nil, a secret)
+-- keeps the last state. Paint only, safe in combat; recorded while off.
+function lib.impl.SetButtonEmpty(inst, skin, isEmpty)
+    if not ownSkin(inst, skin) or isSecret(isEmpty) or type(isEmpty) ~= "boolean" then return false end
+    local was = skin.occupied
+    skin.occupied = not isEmpty
+    if skin.off then return true end
+    try(skin, "rim", paintRim, skin)
+    if was ~= skin.occupied then try(skin, "paint", paintBody, skin) end
+    return true
+end
+
+-- Repaint one skin, or every skin this instance built: the look or a tune
+-- changed. Safe in combat. Nothing while a skin is off.
+function lib.impl.RefreshButton(inst, skin)
+    if not ownSkin(inst, skin) then return false end
+    if not skin.off then paintSkin(skin) end
+    return true
+end
+
+function lib.impl.RefreshButtons(inst)
+    for _, skin in ipairs(inst._buttons) do
+        if not skin.off then paintSkin(skin) end
+    end
+end
+
+-- Setup again, then paint: after the caller's (or the client's) writer set
+-- the button's art again, or after a resize (small is read again). Never
+-- refused in combat: the client's UpdateButtonArt runs mid-fight, and this
+-- touches only the caller's regions and our own frames' levels.
+function lib.impl.RestyleButton(inst, skin)
+    if not ownSkin(inst, skin) then return false end
+    if skin.off then return true end
+    try(skin, "small", readSmall, skin)
+    styleArt(skin)
+    try(skin, "level", relevel, skin)
+    paintSkin(skin)
+    return true
+end
+
+-- The skin off, live, or back on. Off lets go: our frames hidden, the
+-- effects stopped, the icon's mask taken off (kept), and every alpha the
+-- skin owns on the caller's regions set to 1; the caller then puts its own
+-- look back (alphas, the pushed texture's setup, fonts). While off nothing
+-- writes to the caller's regions. On: the same mask again, our frames
+-- shown, then RestyleButton. `shown` is truth-tested: pass a plain value.
+function lib.impl.SetButtonShown(inst, skin, shown)
+    if not ownSkin(inst, skin) then return false end
+    local r = skin.regions
+    if shown then
+        if not skin.off then return true end
+        skin.off = nil
+        if skin.maskIcon and r.icon then try(skin, "mask", attachMask, skin) end
+        try(skin, "show", skin.body.Show, skin.body)
+        lib.impl.RestyleButton(inst, skin)
+        return true
+    end
+    if skin.off then return true end
+    skin.off = true
+    try(skin, "effects", clearEffects, skin)
+    try(skin, "hide", skin.body.Hide, skin.body)
+    if skin.iconMask and r.icon then try(skin, "mask", r.icon.RemoveMaskTexture, r.icon, skin.iconMask) end
+    for _, key in ipairs({ "highlight", "pushed", "hotkey", "name" }) do
+        if r[key] then try(skin, "release:" .. key, r[key].SetAlpha, r[key], 1) end
+    end
+    if r.fade then
+        for name, region in pairs(r.fade) do try(skin, "release:" .. name, region.SetAlpha, region, 1) end
+    end
+    return true
+end
+
+--------------------------------------------------------------------------------
 -- Instances
 --------------------------------------------------------------------------------
 
@@ -1106,6 +1759,7 @@ function lib.impl.Migrate(inst)
     inst._edges = inst._edges or {}
     inst._bars = inst._bars or {}
     inst._fontStrings = inst._fontStrings or {}
+    inst._buttons = inst._buttons or {}   -- r13: the skins this instance built
     for _, name in ipairs(lib.FUNCTIONS) do
         if rawget(inst, name) == nil then
             inst[name] = function(...) return lib.impl[name](inst, ...) end
@@ -1182,6 +1836,7 @@ end
 for _, inst in ipairs(lib.instances) do lib.impl.Migrate(inst) end
 
 -- Test-only internals.
-lib._test = { fill = fill, fillMissing = fillMissing, inRange = inRange, fontsFor = fontsFor }
+lib._test = { fill = fill, fillMissing = fillMissing, inRange = inRange, fontsFor = fontsFor,
+              normLook = normLook }
 
 lib.ready = MINOR

@@ -95,8 +95,33 @@ Glass.SetFillEnd(0.5); Glass.SetEdgeAlpha(0.5); Glass.SetFont("friz")
 Glass.SetTrackLength(0.05); Glass.SetTrackLength(0)
 for _, g in ipairs(discs) do eq(g.rim._alpha, 0.5, g.size .. ": SetRimAlpha reaches the disc") end
 
--- The floor is what the exercise above records today (67), rounded down: it
+-- The button skin (r13, #46), on a Pearl instance (its face too): build,
+-- every hook, the effects, paint, restyle, off and on.
+local Pearl = loadLibrary("GlassUnitFrames"):New({ preset = "pearl" })
+local bb = CreateFrame("CheckButton", nil, UIParent)
+bb:SetSize(36, 36)
+bb:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+local br = { icon = bb:CreateTexture(), pushed = bb:CreateTexture(), highlight = bb:GetHighlightTexture(),
+             hotkey = bb:CreateFontString(), count = bb:CreateFontString(), name = bb:CreateFontString(),
+             fade = { border = bb:CreateTexture() } }
+local bLook = { hover = "halo", press = "ripple" }
+local skin = Pearl.Button(bb, br, { look = function(k) return bLook[k] end, maskIcon = true, inset = 2 })
+check(skin ~= nil and next(skin.failures) == nil, "the button skin built, no step failed")
+skin.body._escale, skin.body._left, skin.body._bottom, bb._mouseOver = 1, 0, 0, true
+for _, script in ipairs({ "OnEnter", "OnMouseDown", "OnLeave", "OnHide" }) do
+    for _, fn in ipairs(bb._hooks[script]) do fn(bb) end
+end
+for _, fn in ipairs(bb._hooks.OnEnter) do fn(bb) end
+WoW.tick(0.5)
+Pearl.SetButtonEmpty(skin, true)
+Pearl.RefreshButtons()
+Pearl.RestyleButton(skin)
+Pearl.SetButtonShown(skin, false)
+Pearl.SetButtonShown(skin, true)
+check(next(skin.failures) == nil, "the skin's exercise failed no step")
+
+-- The floor is what the exercise above records today (94), rounded down: it
 -- keeps the exercise from quietly shrinking.
 local recorded = Kit.checkMethods()
-check(recorded >= 65, "the exercise reached every builder and setter (" .. recorded .. " recorded)")
+check(recorded >= 90, "the exercise reached every builder and setter (" .. recorded .. " recorded)")
 done("test_methods")

@@ -79,8 +79,14 @@ Conventions that prevent halos and keep colour a runtime choice:
 | `disc_mask_small`, `disc_rim_small`, `disc_rim_dark_small`, `disc_shadow_small` | 64 | circle / unsliced | The same at 64px, for discs under ~96px |
 | `rim_thin`, `rim_dark_thin` | 64 | r14 / 16 | The thin rim (r3, size `"thin"`): rim5's lips and glints, a shallower bevel, dimmer |
 | `rim_thin_small`, `rim_dark_thin_small` | 32 | r7 / 8 | The same at half scale (size `"thin_small"`) |
+| `button_rim` | 32 | r7 / 8 | The button skin's rim (r13, §8): a crisp ~1.3 px line, brightest along the top, peak 251/255 |
+| `button_socket_rim`, `button_socket_shade` | 32 | r7 / 8 | Pearl's recessed empty socket: a lit lower lip, a dark upper inset (painted black) |
+| `button_halo` | 64 | r7 + 16 px padding / 24 | The hover halo: a thicker line, a soft glow outward, a faint inner fill |
+| `button_ripple` | 64 | none | The press ripple: a soft white disc |
+| `button_mask` | 32 | r7 / **unsliced** | The button's rounded square as a mask (white RGB, the shape in alpha) |
+| `button_gloss` | 64 | none | Pearl's reflection over a filled button's icon |
 
-These 27 are all `Media\` holds (`tests/test_media.lua` checks it against the code). The earlier
+These 34 are all `Media\` holds (`tests/test_media.lua` checks it against the code). The earlier
 iterations (`rim`…`rim4`, `sheen`) stay with GlassUnitFrames' `Tools/GlassProbe` for its A/B
 comparison. **Texture names are part of the contract:** a frame keeps the path it was built with,
 so a file is never renamed or repurposed within `LibGlass-1.0`; add a new one instead.
@@ -511,6 +517,8 @@ Glass.SetSurfaceEnabled(b, button:IsEnabled())   -- r3: dimmed while disabled
 Glass.SetWash(b, 0.08)                           -- r7: this surface's wash (not g.wash:SetAlpha)
 local pill, p = Glass.Pill(button)               -- r5: a small glass button behind its symbol
 Glass.RelevelPill(pill)                          -- r5: after the button's level changed
+local skin = Glass.Button(button, { icon = icon, pushed = pushed, highlight = hl, fade = { border = art } },
+    { look = myLook, tune = myTune, onError = myLog, maskIcon = true })   -- r13: the button skin (§8)
 Glass.SetFont("friz")                            -- restyles this instance's Glass.Font strings
 Glass.SetRimAlpha(0.5)                           -- this instance's surfaces only
 ```
@@ -651,3 +659,92 @@ library.
 - step 2's recipe check: the preset is exactly the chosen recipe, rim 0.6 included;
 - the owner: both columns alike, live health and mana followed and stayed see-through, all six repaint bars alike, and the live GlassUnitFrames player bar matching the sample. **Released as r11** (`43fd134`, 2026-10-18). |
 | LibGlass-1.0 r10 | `STYLE.trackLength` and `Glass.SetTrackLength(len)`: the track's ramp at the fill's moving edge, fading to clear over a fraction of the bar (GlassUnitFrames #117) | No default change: `trackLength` 0 is the whole-bar ramp, and the parity test passes. Asked for in GlassUnitFrames, where a whole-bar ramp made a 9% mana bar read as half full. The owner compared both in game with GlassUnitFrames' BarProbe (`/fp bar`, sample bars at 5–80%, 70450): both nice, whole bar kept as the default, the edge ramp at 5% offered as an option. **Checked in game** (2026-10-17, 70450) through the library's own path, GlassUnitFrames' `/glass ramp edge` on the deployed r10 code, before tagging. |
+| LibGlass-1.0 r13 | `Glass.Button` and its setters (#46): Glass Action Bars' button skin (rim over the icon, halo, ripple, Pearl's face, frosted empty slots), 7 new textures | No change to anything built before (parity passes; the 27 earlier textures regenerate byte-identical). The 7 button textures are byte-identical to GAB's at `eb3afd3`. **In-game check: pending** (`/fp steps lg button`). |
+
+## 8. The button skin (r13, #46)
+
+`Glass.Button` is the glass face on a button, moved from Glass Action Bars' `Buttons.lua`
+(@ `eb3afd3`, GAB#34 and GAB#44) so another addon (Apotheca#41) wears the same skin without a
+copy. The design, GAB's and Apotheca's requirements and Codex's review are on #46.
+
+**What it draws.**
+- **The body**: our frame one level **under** the button, the mouse off. `Apply(body, "small")`
+  (thin_small on a clean or Pearl instance), its shadow and grain at 0: the tint and wash behind
+  the icon, seen on an empty slot and round the icon's corners.
+- **`g.top`, one level over** the button, never mouse-enabled. Its order is fixed:
+  - Pearl's gloss at ARTWORK 0, the halo at ARTWORK 7;
+  - Pearl's socket shade and the dark line (`g.dark`) at OVERLAY 4, the socket's lit lip at 6;
+  - the rim (`g.rim`, retextured to `button_rim`) at OVERLAY 6, and the ripple at OVERLAY.
+
+  It sits over the icon's edge and over the cooldown sweep, by choice.
+- **The caller's regions**, never owned:
+  - the `fade` map's art at alpha 0, in name order;
+  - the pushed texture made a bright rim (`button_rim`, all points on the button, ADD);
+  - the hotkey and count in the instance's font, OUTLINE (hotkey 10/12 + bump, count 11/14 +
+    bump; small when the button is narrower than 40);
+  - the highlight softened to 0.4 for the `glow` hover, 0 otherwise.
+
+**The look**, read through the caller's getters each time it is used (`look(key)`, `tune(key)`),
+checked for secrets first, then for type and range; anything else is the default:
+
+| key | values | default |
+|---|---|---|
+| `hover` | `off`, `glow`, `halo` | `glow` |
+| `press` | `off`, `flash`, `ripple` | `flash` |
+| `emptySlots` | `hidden`, `faint`, `half`, `full`, `frosted` | `frosted` |
+| `tint` | `{ r, g, b, a? }`, or nil: as built | nil |
+| `tintWash` | the theme's factor on the wash, 0..4 | 1 |
+| `showHotkey`, `showName` | boolean | true |
+
+The tune keys (`Glass.BUTTON.TUNE_ORDER`) take 0..1, and nil falls back to the instance's material
+(`Glass.ButtonDefault(key)`):
+
+| | rim | empty | dark | wash | body | frostGrey | frostAlpha | frostRim | gloss | socketShade |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Classic, Clean | 0.85 | 0.75 | 0.15 | 0.04 | 0.25 | 0.9 | 0.08 | 0.35 | 0 | 0 |
+| Pearl | 0.70 | 0.75 | 0.20 | 0.04 | 0.25 | 0.40 | 0.22 | 0.60 | 0.08 | 0.18 |
+
+**Paint** (GAB's `Theme.lua` and `Buttons.lua`, unchanged):
+- the empty factor: 1 filled; on an empty slot `EMPTY[mode]` (hidden 0, faint 0.25, half 0.5,
+  full 1), or `frostRim` for frosted;
+- the body: tint alpha `(tint[4] or built[4]) * body * factor` (the tint hidden at 0), the wash
+  `min(1, STYLE.wash * tintWash * wash * factor)` through `SetWash` (a gradient: `SetAlpha` doesn't
+  reach it, §6);
+- **a frosted empty slot on as-built glass** (`tint` nil) is filled with the frost instead: Pearl's
+  neutral `frostGrey`, a cool grey otherwise (`+0.01` green, `+0.04` blue), at `frostAlpha`
+  unscaled, the wash unscaled by the factor. A tinted body keeps its tint;
+- the rim and dark line: `rim * f` and `dark * f`, `f` 1 filled, `empty * factor` empty. On Pearl
+  a frosted empty slot swaps the raised rim for the socket (lip `rim * f`, shade
+  `socketShade * factor`), and a filled one shows the gloss at `gloss`.
+
+**Feedback.** `HookScript` on `OnEnter`, `OnLeave`, `OnHide` and `OnMouseDown` (never `OnClick`),
+each calling `lib.impl.ButtonHook(skin, what)` when it fires:
+- **the halo** (`hover` `halo`): `button_halo` 16 px round the body, 9-sliced at 24, warm white
+  (1, 0.94, 0.8), ADD, in over 0.1 s and out over 0.15 s;
+- **the ripple** (`press` `ripple`): `button_ripple` under the `button_mask` mask, from the pointer
+  (`GetCursorPosition` over the effective scale), 0.3 to 1.6 of the width over 0.3 s, alpha 0.6.
+  A secret read starts it from the centre on a 36 px base.
+
+One driver frame (`lib.buttonDriver`, made on first use) runs every effect; its `OnUpdate` is set
+only while a halo fades or a ripple swells.
+
+**Setup and paint.** `Button` and `RestyleButton` set textures and anchors on the caller's regions.
+`RefreshButton(s)` and `SetButtonEmpty` change only alphas, colours and fonts, so they are safe
+in combat. `RestyleButton` is never refused in combat either: the client's `UpdateButtonArt` runs
+mid-fight, and it touches only regions and our own frames (plain children of a secure button stay
+unprotected: the porting guide's measured protection rules). `Button` itself returns
+`nil, "combat"` in combat.
+
+**Off and on** (`SetButtonShown`). Off lets go: our frames hidden, the effects stopped, the icon's
+mask removed (kept), and every alpha the skin owns on the caller's regions set to 1 (highlight,
+fades, pushed, hotkey, name). The caller then puts its own look back. While off, nothing the skin
+does writes to the caller's regions; `SetButtonEmpty` still records the state. On re-attaches the
+same mask, shows our frames and restyles.
+
+**One skin per button.** `lib.buttons` is shared: the first instance to skin a button holds it,
+also while off. An addon whose buttons are also GAB providers decides at login: GAB's `SkinButton`
+with GAB loaded, its own skin otherwise.
+
+**Upgrades.** The hooks and the driver dispatch through `lib.impl`. A later copy keeps the meaning
+of every skin field and effect record, defaults missing ones, skips missing regions, never
+rebuilds, and keeps `ButtonHook(skin, what)` and `ButtonStep(elapsed)`'s calling convention.
