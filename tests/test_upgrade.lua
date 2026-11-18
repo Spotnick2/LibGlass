@@ -35,7 +35,7 @@ end]], {
     { "    sheenAlpha = 0.8,\n", "    sheenAlpha = 0.8,\n    probe = 0.5,\n" },
     { "    rimAlpha = 0.7,", "    rimAlpha = 0.33," },
     { "glowh = 4 }", "glowh = 4, probeEdge = 2 }" },
-    { '"SetTrackLength" }', '"SetTrackLength", "Probe" }' },
+    { '"SetButtonShown" }', '"SetButtonShown", "Probe" }' },
     { "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n",
       "help = \"a fine bright top line and dark bottom line, 0 = off\" },\n"
       .. "    { key = \"probe\", style = \"probe\", fn = \"SetRimAlpha\", min = 0, max = 1, label = \"Probe\", help = \"probe\" },\n" },
@@ -81,6 +81,16 @@ do
     local bar = A.Bar(host, 20)
     bar:SetStatusBarColor(1, 0, 0)
     local gB = B.Apply(newHost(), "small")
+    -- A button skin with a halo fading in and a ripple swelling (r13, #46).
+    local btn = CreateFrame("Button", nil, UIParent)
+    btn:SetSize(36, 36)
+    local btnLook = { hover = "halo", press = "ripple" }
+    local btnR = { highlight = btn:CreateTexture(), pushed = btn:CreateTexture(), icon = btn:CreateTexture() }
+    local skin = A.Button(btn, btnR, { look = function(k) return btnLook[k] end, maskIcon = true })
+    for _, fn in ipairs(btn._hooks.OnEnter) do fn(btn) end
+    for _, fn in ipairs(btn._hooks.OnMouseDown) do fn(btn) end
+    WoW.tick(0.02)
+    local buttons, fx, driver = lib.buttons, lib.buttonFx, lib.buttonDriver
     -- A consumer's direct overrides (GlassChat retints and re-alphas regions).
     g.rim:SetAlpha(0.1)
     g.tint:SetColorTexture(0.5, 0.5, 0.5, 0.5)
@@ -179,6 +189,30 @@ do
     eq(rawget(A, "MEDIA"), nil, "through the library, not a copy")
     eq(bar:GetStatusBarTexture()._file, mediaOf("GlassUnitFrames") .. "bar_fill", "a bar built earlier keeps its path")
     eq(newBar:GetStatusBarTexture()._file, mediaOf("GlassChat") .. "bar_fill", "a new bar takes the winner's")
+
+    -- The button skin built before the upgrade (r13, #46): the registries
+    -- and the driver keep their identity, the running effects finish under
+    -- the newer copy, and its hooks and setters run the newer code.
+    check(lib.buttons == buttons and lib.buttonFx == fx and lib.buttonDriver == driver,
+          "lib.buttons, lib.buttonFx and the driver keep their identity")
+    eq(A.ButtonSkin(btn), skin, "the skin is still registered")
+    check(fx.fading[skin] ~= nil and fx.rippling[skin] ~= nil, "its halo and ripple still running")
+    n0 = mark("ButtonStep")
+    for _ = 1, 20 do WoW.tick(0.02) end
+    check(mark("ButtonStep") > n0, "the driver set before the upgrade runs the newer ButtonStep")
+    eq(skin.halo._alpha, 1, "the halo finished fading in")
+    eq(skin.ripple._shown, false, "the ripple finished")
+    eq(driver._scripts.OnUpdate, nil, "and the driver stopped")
+    n0 = mark("ButtonHook")
+    for _, fn in ipairs(btn._hooks.OnLeave) do fn(btn) end
+    eq(mark("ButtonHook"), n0 + 1, "a hook installed before the upgrade runs the newer ButtonHook, once")
+    btnLook.press = "off"
+    check(A.RefreshButton(skin), "RefreshButton on the older skin")
+    eq(btnR.pushed._alpha, 0, "  repaints it")
+    check(A.RestyleButton(skin), "RestyleButton on it")
+    check(A.SetButtonShown(skin, false) and A.SetButtonShown(skin, true), "off and on again")
+    eq(#btnR.icon._masks, 1, "  the same mask attached once")
+    eq(next(skin.failures), nil, "no step failed on the older skin")
 end
 
 ------------------------------------------------------------------------------
@@ -292,9 +326,10 @@ do
     check(lib.SIZES == held.SIZES and lib.SIZES.large == held.large and lib.FONTS == held.FONTS,
           "SIZES and FONTS filled in place")
     eq(lib.FUNCTIONS, held.functions, "FUNCTIONS keeps r1's table")
-    eq(#lib.FUNCTIONS, nFunctions + 10, "with r2's, r3's, r5's, r7's, r9's and r10's names appended")
+    eq(#lib.FUNCTIONS, nFunctions + 18, "with r2's, r3's, r5's, r7's, r9's, r10's and r13's names appended")
     eq(table.concat(lib.FUNCTIONS, ",", nFunctions + 1),
-       "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill,SetWash,SetSurfaceRim,SetSurfaceAlpha,Reflect,SetTrackLength",
+       "Disc,SetSurfaceTint,SetSurfaceEnabled,Pill,RelevelPill,SetWash,SetSurfaceRim,SetSurfaceAlpha,Reflect,SetTrackLength,"
+       .. "Button,ButtonSkin,ButtonDefault,SetButtonEmpty,RefreshButton,RefreshButtons,RestyleButton,SetButtonShown",
        "in order")
     check(lib.SIZES.disc and lib.SIZES.disc_small, "SIZES gains the disc sets")
 

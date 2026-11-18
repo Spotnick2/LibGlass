@@ -678,6 +678,70 @@ check(not FO.FB.root:IsShown(), "lg hide closes the fonts board")
 rawset(_G, "CreateFontFamily", nil)
 
 ------------------------------------------------------------------------------
+-- #46: the button skin, end to end, its last part in combat on a
+-- SecureActionButtonTemplate button
+------------------------------------------------------------------------------
+local BT = ns._test.Buttons
+fp("steps lg button")
+local brec = ForeverProbeDB.steps.records["LibGlassProbe/button"]
+check(brec and brec.status == "active", "/fp steps lg button starts it")
+eq(brec.results[1].check, N >= 13 and "PASS" or "FAIL", "step 1 needs r13")
+S.Run(); shoot()   -- 2: the board
+check(BT.PB.root:IsShown(), "the button board is up")
+eq(#BT.PB.skins, 12, "twelve skins: two filled and two empty per material")
+local presets = {}
+for _, s in ipairs(BT.PB.skins) do presets[s.glass.preset] = (presets[s.glass.preset] or 0) + 1 end
+check(presets.classic == 4 and presets.clean == 4 and presets.pearl == 4, "four per material")
+local pearlSkin
+for _, s in ipairs(BT.PB.skins) do if s.glass.preset == "pearl" then pearlSkin = s.skin end end
+check(pearlSkin.gloss ~= nil, "a Pearl skin has its face")
+S.Run(); shoot()   -- 3: cooldowns
+S.Answer(true); S.Answer(true)
+S.Run()            -- 6: halo
+eq(BT.PB.look.hover, "halo", "the look's hover is the halo")
+eq(BT.PB.skins[1].skin.regions.highlight._alpha, 0, "  the highlight off on a skin")
+S.Answer(true)
+S.Run()            -- 8: ripple
+S.Answer(true)
+S.Run(); shoot()   -- 10: smoked
+local empty = BT.PB.skins[3].skin
+eq(empty.occupied, false, "the third skin is the first empty one")
+near(empty.g.tint._color[1], 0.05, "smoked: an empty slot keeps the tint")
+S.Answer(true)
+S.Run(); shoot()   -- 12: off
+eq(BT.PB.skins[1].skin.body._shown, false, "off: the skins' frames hidden")
+eq(BT.PB.skins[1].skin.regions.fade.border._alpha, 1, "  the bronze frame back")
+S.Answer(true)
+S.Run(); shoot()   -- 14: on
+eq(BT.PB.skins[1].skin.body._shown, true, "on: shown again")
+S.Answer(true)
+S.Run(); shoot()   -- 16: shrink
+eq(BT.PB.skins[1].skin.small, true, "30 px: the small fonts")
+S.Answer(true)
+S.Run()            -- 18: back to 45
+eq(BT.PB.skins[1].skin.small, false, "45 px: the large fonts")
+S.Run()            -- 19: the secure button
+check(BT.PB.secureSkin ~= nil and BT.PB.secure._protected, "a skinned SecureActionButtonTemplate button")
+WoW.combat = true
+local blockedBefore = #WoW.blocked
+S.Run()            -- 20: restyle in combat
+eq(brec.results[20].check, "PASS", "the restyle ran in combat")
+eq(#WoW.blocked, blockedBefore, "  nothing blocked on the secure button")
+S.Answer(true)
+WoW.combat = false
+eq(brec.results[22].check, "PASS", "no skin failed a step")
+S.Next()
+eq(brec.status, "done", "the button procedure finishes")
+noErrors(brec, "button")
+fp("lg buttonlook press off")
+eq(BT.PB.look.press, "off", "lg buttonlook sets a look key")
+fp("lg buttonlook tint smoked")
+check(type(BT.PB.look.tint) == "table", "and the smoked tint")
+fp("lg button")
+fp("lg hide")
+check(not BT.PB.root:IsShown(), "lg hide closes the button board")
+
+------------------------------------------------------------------------------
 -- Nothing went wrong, nothing went to chat, the log clears in place
 ------------------------------------------------------------------------------
 eq(logCount("ERROR"), 0, "no command or step logged an error")

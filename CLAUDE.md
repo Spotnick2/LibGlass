@@ -53,17 +53,20 @@ packager clones externals anonymously, so it must stay public). License: MIT.
 
 - **No TOC.** Entry point `LibGlass-1.0.xml`: `LibStub\LibStub.lua`, then `LibGlass.lua`.
 - **`LibGlass.lua`**: the one runtime file. `MAJOR, MINOR = "LibGlass-1.0", N`.
-- **`Media\`**: exactly the 27 textures the code names (r1: `bar_edge bar_fill bar_mask body_mask
+- **`Media\`**: exactly the 34 textures the code names (r1: `bar_edge bar_fill bar_mask body_mask
   body_mask_small gloss grain rim5 rim5_small rim_dark5 rim_dark5_small shadow shadow_small
   sheen2 track_fade`; r2: `disc_mask disc_rim disc_rim_dark disc_shadow` and their `_small`
-  versions; r3: `rim_thin rim_dark_thin` and their `_small` versions). Generated, never hand-edited.
+  versions; r3: `rim_thin rim_dark_thin` and their `_small` versions; r13: `button_rim button_halo
+  button_ripple button_mask button_gloss button_socket_rim button_socket_shade`, byte-identical to
+  GlassActionBars' at `eb3afd3`). Generated, never hand-edited.
 - **`Tools\make_textures.py`**: the texture generator (Pillow + numpy).
   **`Tools\deploy.ps1`**: the helper consumers call to copy this checkout into
   `AddOns\<Addon>\Libs\LibGlass-1.0` (preflight: XML, Lua, all textures, LICENSE).
 - **`Tools\LibGlassProbe\`**: the developer probe, a ForeverProbe module (`/fp lg`; read
   `C:\Projects\WoW\References\Docs\PROBES.md` before changing it). It embeds this checkout. It holds
   the r6 track comparison and the r7 disabled-look check (`/fp steps lg r7`); `Pearl.lua` holds the
-  #64 procedures (`/fp steps lg repaint`, `/fp steps lg pearl`). Never packaged.
+  #64 procedures (`/fp steps lg repaint`, `/fp steps lg pearl`); `Buttons.lua` the r13 button
+  skin's (`/fp steps lg button`, #46). Never packaged.
 - **`docs\GLASS-MATERIAL.md`**: the material write-up (moved here from GlassUnitFrames). **Any
   change to `LibGlass.lua`, `Tools/make_textures.py` or the material parameters updates it in
   the same commit.**
@@ -109,8 +112,21 @@ side by side.
   `SetTrackLength(len)` (r10: 0 = the track ramp across the whole bar, the default; a fraction in
   0.01..1 = only its fade, from the fill's moving edge over that fraction of the bar's width,
   every bar of the instance, live; also the `STYLE.trackLength` construction key).
+  The button skin (r13, #46, `docs/GLASS-MATERIAL.md` section 8): `Button(button, regions?, opts?)
+  → skin` or `nil, "combat"|"skinned"` (setup, out of combat; regions by role `icon pushed
+  highlight hotkey count name` and a `fade` map; opts `look(key)`, `tune(key)`, `onError(step,
+  msg)`, `maskIcon`, `inset`), `ButtonSkin(button)`, `ButtonDefault(key)`, and the paint calls
+  `SetButtonEmpty(skin, isEmpty)`, `RefreshButton(skin)`, `RefreshButtons()` (combat-safe),
+  `RestyleButton(skin)` (setup again, never refused in combat) and `SetButtonShown(skin, shown)`
+  (off lets go: owned alphas to 1, the caller restores its look). **Nothing is written on the
+  button**; the look is read through the getters each time; each build step runs under its own
+  pcall. The skin handle's fields are read-only: `button body g regions occupied small failures`.
+  The hooks (`OnEnter OnLeave OnHide OnMouseDown`) call `lib.impl.ButtonHook(skin, what)` and the
+  driver `lib.impl.ButtonStep(elapsed)`: keep both calling conventions and every skin field's
+  meaning. `lib.buttons` (button → skin) is shared: the first instance to skin a button holds it.
 - Instance data: `STYLE`, `EDGE`, `fontKey`, `TUNABLES` (own copies); `MEDIA`, `SIZES`, `FONTS`,
-  `TRACK_LEVEL`, `OVERLAY_LEVEL` (shared, read-only). From r12 (#69) `FONTS[key].file` is the
+  `TRACK_LEVEL`, `OVERLAY_LEVEL`, and from r13 `BUTTON` (`TUNE_ORDER`, `LOOK`) (shared,
+  read-only). From r12 (#69) `FONTS[key].file` is the
   client locale's file for that key (Cyrillic Friz on ruRU, the Korean and Chinese fonts on
   koKR/zhCN/zhTW, r11's Latin files elsewhere), chosen at load; GlassRaidFrames and GlassActionBars
   read `.file` directly.

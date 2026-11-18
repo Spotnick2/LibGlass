@@ -28,7 +28,9 @@ $Textures = @("bar_edge", "bar_fill", "bar_mask", "body_mask", "body_mask_small"
               "sheen2", "track_fade",
               "disc_mask", "disc_mask_small", "disc_rim", "disc_rim_small", "disc_rim_dark", "disc_rim_dark_small",
               "disc_shadow", "disc_shadow_small",
-              "rim_thin", "rim_thin_small", "rim_dark_thin", "rim_dark_thin_small")
+              "rim_thin", "rim_thin_small", "rim_dark_thin", "rim_dark_thin_small",
+              "button_rim", "button_halo", "button_ripple", "button_mask", "button_gloss",
+              "button_socket_rim", "button_socket_shade")
 
 # --- Preflight: everything the XML loads, LICENSE, every texture.
 $xmlPath = Join-Path $LibRoot "LibGlass-1.0.xml"

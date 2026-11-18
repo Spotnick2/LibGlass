@@ -48,7 +48,7 @@ for name in pairs(named) do
     count = count + 1
     check(files[name .. ".tga"], "Media holds " .. name .. ".tga")
 end
-eq(count, 27, "the code names 27 textures (r1's 15, r2's 8 disc textures, r3's 4 thin rims)")
+eq(count, 34, "the code names 34 textures (r1's 15, r2's 8 disc textures, r3's 4 thin rims, r13's 7 button textures)")
 for file in pairs(files) do
     local name = file:match("^(.+)%.tga$")
     check(name and named[name], "Media\\" .. file .. " is a texture the code names")

@@ -21,7 +21,7 @@ $ErrorActionPreference = "Stop"
 $ProbeDir = $PSScriptRoot
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $ProbeDir)
 $ForeverProbe = if ($env:FOREVERPROBE) { $env:FOREVERPROBE } else { Join-Path (Split-Path -Parent $RepoRoot) "ForeverProbe" }
-$Files = @("LibGlassProbe.toc", "LibGlassProbe.lua", "Pearl.lua", "Fonts.lua")
+$Files = @("LibGlassProbe.toc", "LibGlassProbe.lua", "Pearl.lua", "Fonts.lua", "Buttons.lua")
 
 foreach ($f in $Files) {
     if (-not (Test-Path -LiteralPath (Join-Path $ProbeDir $f))) { Write-Error "Missing probe file: $f"; exit 1 }

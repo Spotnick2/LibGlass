@@ -1,6 +1,6 @@
 ## Interface: 16001
 ## Title: LibGlassProbe
-## Notes: Throwaway probe for LibGlass: the material side by side, the disabled look, the Pearl preset, the fonts by locale. A ForeverProbe module: /fp lg
+## Notes: Throwaway probe for LibGlass: the material side by side, the disabled look, the Pearl preset, the fonts by locale, the button skin. A ForeverProbe module: /fp lg
 ## Author: Spotnick
 ## Version: dev
 ## Dependencies: ForeverProbe
@@ -10,3 +10,4 @@ Libs\LibGlass-1.0\LibGlass-1.0.xml
 LibGlassProbe.lua
 Pearl.lua
 Fonts.lua
+Buttons.lua
