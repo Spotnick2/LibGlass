@@ -34,8 +34,15 @@ local function instance(material)
 end
 
 -- One probe button, as an addon makes its own: every region by role, and a
--- bronze frame of its own for the skin to fade. An empty one (no icon) hides
--- its icon, as an empty action slot does, so the body shows.
+-- bronze frame of its own for the skin to fade: four 3 px strips round the
+-- button, an outline, so an empty slot (its icon hidden, as an empty action
+-- slot's is) reads as an empty framed slot when the skin is off.
+local FRAME_EDGES = {
+    frameTop    = { "TOPLEFT", -3, 3, "TOPRIGHT", 3, 0 },
+    frameBottom = { "BOTTOMLEFT", -3, 0, "BOTTOMRIGHT", 3, -3 },
+    frameLeft   = { "TOPLEFT", -3, 0, "BOTTOMLEFT", 0, 0 },
+    frameRight  = { "TOPRIGHT", 0, 0, "BOTTOMRIGHT", 3, 0 },
+}
 local function makeButton(parent, x, y, icon)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(SIZE, SIZE)
@@ -44,10 +51,16 @@ local function makeButton(parent, x, y, icon)
     t:SetAllPoints(b)
     t:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     if icon then t:SetTexture(icon) else t:Hide() end
-    local border = b:CreateTexture(nil, "BACKGROUND")
-    border:SetPoint("TOPLEFT", b, "TOPLEFT", -3, 3)
-    border:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 3, -3)
-    border:SetColorTexture(0.55, 0.4, 0.2, 0.9)
+    local fade = {}
+    for name, e in pairs(FRAME_EDGES) do
+        -- e: the strip's top-left and bottom-right, each on a point of the
+        -- button; top and bottom span the corners, the sides sit between.
+        local strip = b:CreateTexture(nil, "BACKGROUND")
+        strip:SetPoint("TOPLEFT", b, e[1], e[2], e[3])
+        strip:SetPoint("BOTTOMRIGHT", b, e[4], e[5], e[6])
+        strip:SetColorTexture(0.55, 0.4, 0.2, 0.9)
+        fade[name] = strip
+    end
     b:SetPushedTexture("Interface\\Buttons\\UI-Quickslot-Depress")
     b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
     -- A font of its own, as an action button has from its template: SetText
@@ -59,7 +72,7 @@ local function makeButton(parent, x, y, icon)
     local cd = CreateFrame("Cooldown", nil, b, "CooldownFrameTemplate")
     cd:SetAllPoints(t)
     local regions = { icon = t, pushed = b:GetPushedTexture(), highlight = b:GetHighlightTexture(),
-                      hotkey = hk, count = count, fade = { border = border } }
+                      hotkey = hk, count = count, fade = fade }
     return b, regions, cd
 end
 

@@ -720,7 +720,26 @@ near(empty.g.tint._color[1], 0.05, "smoked: an empty slot keeps the tint")
 S.Answer(true)
 S.Run(); shoot()   -- 12: off
 eq(BT.PB.skins[1].skin.body._shown, false, "off: the skins' frames hidden")
-eq(BT.PB.skins[1].skin.regions.fade.border._alpha, 1, "  the bronze frame back")
+-- The bronze frame is an outline, so an empty slot reads as one when off
+-- (the 2026-11-18 run: a filled square showed as a bronze slab).
+for _, i in ipairs({ 1, 3 }) do
+    local fade, n = BT.PB.skins[i].skin.regions.fade, 0
+    for name, strip in pairs(fade) do
+        n = n + 1
+        eq(strip._alpha, 1, "  skin " .. i .. ": the bronze " .. name .. " back")
+        -- Each anchor in the button's coordinates (origin bottom-left).
+        local side = BT.PB.skins[i].skin.button:GetWidth()
+        local function at(p)
+            return (p[3]:find("RIGHT") and side or 0) + p[4], (p[3]:find("TOP") and side or 0) + p[5]
+        end
+        local x1, y1 = at(strip._points[1])
+        local x2, y2 = at(strip._points[2])
+        local w, h = x2 - x1, y1 - y2
+        check(w > 0 and h > 0 and (w == 3 or h == 3) and not (x1 >= 0 and x2 <= side and y2 >= 0 and y1 <= side),
+              "  skin " .. i .. ": " .. name .. " is a 3 px strip outside the button (" .. w .. "x" .. h .. ")")
+    end
+    eq(n, 4, "  skin " .. i .. ": four strips")
+end
 S.Answer(true)
 S.Run(); shoot()   -- 14: on
 eq(BT.PB.skins[1].skin.body._shown, true, "on: shown again")
