@@ -6,8 +6,9 @@ faked with layered textures (real backdrop blur isn't available to addons).
 
 Embedded with LibStub; players don't install it separately.
 
-> **Status:** r12 released: the fonts follow the client's locale, so Russian, Korean and Chinese
-> clients get text, not boxes. Nothing changes on English clients.
+> **Status:** r13 released: `Glass.Button`, the glass button skin from Glass Action Bars (rim over
+> the icon, hover halo, click ripple, frosted empty slots, Pearl's gloss and socket), shared so any
+> addon's buttons can wear it.
 
 ## Embedding
 
