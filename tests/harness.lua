@@ -3,30 +3,13 @@ RELEASES = { "LibGlass-r1.lua", "LibGlass-r2.lua", "LibGlass-r3.lua", "LibGlass-
              "LibGlass-r5.lua", "LibGlass-r6.lua", "LibGlass-r7.lua", "LibGlass-r8.lua",
              "LibGlass-r9.lua", "LibGlass-r10.lua", "LibGlass-r11.lua", "LibGlass-r12.lua" }
 
--- harness.lua: assertions and the library loader. dofile it after wow_stubs.lua.
+-- harness.lua: the library loader. dofile it after wow_stubs.lua.
 -- Run from the repo root so the relative paths resolve.
-
-local passed, failed = 0, 0
-
-function check(cond, msg)
-    if cond then passed = passed + 1 else
-        failed = failed + 1
-        io.write("  FAIL: " .. tostring(msg) .. "\n")
-    end
-end
-
-function eq(actual, expected, msg)
-    check(actual == expected, string.format("%s: expected %s, got %s", msg, tostring(expected), tostring(actual)))
-end
+-- check, eq and done are WowTestKit's (global, loaded by wow_stubs.lua).
 
 function near(actual, expected, msg)
     check(type(actual) == "number" and math.abs(actual - expected) < 1e-6,
           string.format("%s: expected ~%s, got %s", msg, tostring(expected), tostring(actual)))
-end
-
-function done(name)
-    io.write(string.format("%s: %d passed, %d failed\n", name, passed, failed))
-    os.exit(failed == 0 and 0 or 1)
 end
 
 function readFile(path)
@@ -141,11 +124,7 @@ function foreverProbeRoot(name)
 end
 
 function loadForeverProbe(root)
-    local files = {}
-    for line in readFile(root .. "/ForeverProbe.toc"):gmatch("[^\r\n]+") do
-        if line:match("%.lua$") and not line:match("^#") then files[#files + 1] = root .. "/" .. line end
-    end
-    for _, file in ipairs(files) do assert(loadfile(file))("ForeverProbe", {}) end
+    for _, file in ipairs(Kit.tocFiles("ForeverProbe.toc", root .. "/")) do assert(loadfile(file))("ForeverProbe", {}) end
     WoW.fire("ADDON_LOADED", "ForeverProbe")
     return ForeverProbe
 end
@@ -156,10 +135,10 @@ end
 function loadProbe()
     local dir = "Tools/LibGlassProbe/"
     local ns = {}
-    for line in readFile(dir .. "LibGlassProbe.toc"):gmatch("[^\r\n]+") do
+    for _, line in ipairs(Kit.tocLines(dir .. "LibGlassProbe.toc")) do
         if line == "Libs\\LibGlass-1.0\\LibGlass-1.0.xml" then
             loadCopy(copyOf(), "LibGlassProbe")
-        elseif line:match("%.lua$") and not line:match("^#") then
+        elseif line:match("%.lua$") then
             assert(loadfile(dir .. line))("LibGlassProbe", ns)
         end
     end

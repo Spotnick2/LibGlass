@@ -1,27 +1,12 @@
 -- Every widget method the library calls must exist on this client.
 --
--- The stub answers any method call (a no-op for ones it does not implement),
--- so a call to a method Forever lacks would otherwise pass silently. This
--- checks each recorded "Type:Method" against the API dump's widget-method
--- walk, falling back to Animation for the animation subtypes the walk does
--- not list (Translation, Alpha), then to the documented functions
--- (Alpha:SetToAlpha), as GlassUnitFrames' test_methods does.
+-- A method the pinned build lacks on one widget type can still answer on the
+-- stub (an implementation another type uses), so a call to it would
+-- otherwise pass silently. This exercises the library, then checks each
+-- recorded "Type:Method" against the build's widget methods with WowTestKit's
+-- Kit.checkMethods (an animation subtype may also call Animation's).
 dofile("tests/wow_stubs.lua")
 dofile("tests/harness.lua")
-
-local f = io.open(WoW.DUMP, "r")
-if not f then
-    io.write("test_methods: SKIPPED (no API dump at " .. WoW.DUMP .. ")\n")
-    os.exit(0)
-end
-local widget, documented = {}, {}
-for line in f:lines() do
-    local wm = line:match("^(%a+:%a+)%s*$")
-    if wm then widget[wm] = true end
-    local fn = line:match("^([%a_]+)%(")
-    if fn then documented[fn] = true end
-end
-f:close()
 
 -- Exercise everything so every method is recorded.
 local Glass = loadLibrary("GlassUnitFrames"):New()
@@ -110,14 +95,8 @@ Glass.SetFillEnd(0.5); Glass.SetEdgeAlpha(0.5); Glass.SetFont("friz")
 Glass.SetTrackLength(0.05); Glass.SetTrackLength(0)
 for _, g in ipairs(discs) do eq(g.rim._alpha, 0.5, g.size .. ": SetRimAlpha reaches the disc") end
 
-local n = 0
-for name in pairs(WoW.methodsCalled) do
-    n = n + 1
-    local wtype, method = name:match("^(%a+):(%a+)$")
-    local ok = widget[name]
-        or ((wtype == "Translation" or wtype == "Alpha") and widget["Animation:" .. method])
-        or documented[method]
-    check(ok, "method exists on Forever: " .. name)
-end
-check(n > 30, "recorded a realistic number of methods (" .. n .. ")")
+-- The floor is what the exercise above records today (67), rounded down: it
+-- keeps the exercise from quietly shrinking.
+local recorded = Kit.checkMethods()
+check(recorded >= 65, "the exercise reached every builder and setter (" .. recorded .. " recorded)")
 done("test_methods")

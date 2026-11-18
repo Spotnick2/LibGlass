@@ -690,18 +690,7 @@ eq(#DB.log, 1, "leaving the one line after it")
 check(DB.log[1] and DB.log[1]:find("log cleared", 1, true), "which is that one")
 
 -- Every widget method the probe (and the host, for its panel) called exists
--- on this client: the stub answers any method, so a missing one would pass.
-local f = io.open(WoW.DUMP, "r")
-if f then
-    local widget = {}
-    for line in f:lines() do
-        local wm = line:match("^(%a+:%a+)%s*$")
-        if wm then widget[wm] = true end
-    end
-    f:close()
-    for name in pairs(WoW.methodsCalled) do check(widget[name], "method exists on Forever: " .. name) end
-else
-    io.write("  (no API dump at " .. WoW.DUMP .. ": methods not checked)\n")
-end
+-- on this client, for that widget type (WowTestKit's Kit.checkMethods).
+Kit.checkMethods()
 
 done("test_probe")
